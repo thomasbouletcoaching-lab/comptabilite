@@ -177,6 +177,10 @@ button.bl:hover{background:var(--sunk)}
 .item-r{display:grid;grid-template-columns:1fr 84px 1fr auto;gap:6px}
 .item input,.item select{padding:7px 8px}
 .item .fam{font-size:13px;color:var(--muted)}
+.rec{display:grid;gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}
+.rec-h{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.rec-r{display:grid;grid-template-columns:minmax(90px,1fr) minmax(90px,1fr) minmax(120px,1.4fr);gap:8px}
+@media (max-width:420px){.rec-r{grid-template-columns:1fr 1fr}.rec-r label:last-child{grid-column:1/-1}}
 /* comptes */
 .acc{display:grid;gap:10px}
 .acc-h{display:flex;justify-content:space-between;align-items:center;gap:10px;background:none;border:0;padding:0;text-align:left;width:100%}
@@ -603,6 +607,7 @@ function vReglages(){
     ${isOwner()?`<div class="fgrid" style="align-items:end"><label class="f"><span>Prénom</span><input type="text" id="m_name" placeholder="Diana"></label><label class="f"><span>Email</span><input type="email" id="m_email" placeholder="diana@exemple.fr" autocomplete="off"></label><button class="btn" id="addMember">Ajouter</button></div>
     <p class="note" style="margin:0">Pour ton conjoint par exemple. La personne crée son compte sur cette app avec le même email, confirme l'email reçu, et retrouve ta comptabilité.</p>`:""}
   </div></div>
+  ${recListHtml()}
   <div><h2>Installer sur le téléphone</h2><div class="card small">Sur iPhone, ouvre cette page dans Safari, touche le bouton Partager puis « Sur l'écran d'accueil ». Sur Android, menu de Chrome puis « Installer l'application ».</div></div>
   <div><h2>Données</h2><div class="card toolbar"><button class="btn" id="exportCsv">Télécharger en CSV</button><button class="btn" id="copyCsv">Copier pour Google Sheets</button><button class="btn danger" id="logout">Se déconnecter</button></div></div>`;
 }

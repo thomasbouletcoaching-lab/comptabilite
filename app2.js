@@ -21,7 +21,35 @@ const accName = id => (ACC.find(a => a.id === id) || {}).name || "";
 const isTransfer = t => t.group === "transfert";
 const num = v => { const n = parseFloat(String(v ?? "").replace(/\s/g, "").replace(",", ".")); return isFinite(n) ? n : null; };
 
-/* ===================== Chargement des données ajoutées ===================== */
+const dayLabel = d => d >= 31 ? "dernier jour" : d === 1 ? "1er" : String(d);
+const dayOptions = sel => Array.from({ length: 31 }, (_, i) => i + 1).map(d => `<option value="${d}" ${d === sel ? "selected" : ""}>${d === 31 ? "31 (ou dernier jour du mois)" : d === 1 ? "1er" : d}</option>`).join("");
+/* date du même mois au jour voulu ; si ce jour est déjà passé ce mois-ci, mois suivant */
+function dateWithDay(ds, d) {
+  let [y, m] = ds.split("-").map(Number); const today = todayIso();
+  let last = new Date(y, m, 0).getDate(); let out = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+  if (out < today && ds.slice(0, 7) === today.slice(0, 7)) { m++; if (m > 12) { m = 1; y++; } last = new Date(y, m, 0).getDate(); out = `${y}-${String(m).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`; }
+  return out;
+}
+
+/* ===================== Gestion des récurrences (Réglages) ===================== */
+function recListHtml() {
+  const act = REC.filter(r => r.active).filter(r => r.scope === "foyer" || isOwner()).sort((a, b) => a.day - b.day || b.amount - a.amount);
+  const accOpts = sel => `<option value="">Aucun compte</option>` + [...ACC].sort((a, b) => (a.ord || 0) - (b.ord || 0)).map(a => `<option value="${a.id}" ${sel === a.id ? "selected" : ""}>${esc(a.name)}</option>`).join("");
+  const totOut = sum(act.filter(r => r.type === "out" && r.scope === "foyer")), totIn = sum(act.filter(r => r.type === "in" && r.scope === "foyer"));
+  return `<div><h2>Dépenses et revenus récurrents</h2><div class="card" style="display:grid;gap:4px">
+    ${act.length ? `<p class="small muted" style="margin:0 0 6px">${act.length} récurrence${act.length > 1 ? "s" : ""} : ${eur(totOut)} de dépenses${totIn ? ` et ${eur(totIn)} de revenus` : ""} du foyer chaque mois.</p>` : `<p class="small muted" style="margin:0">Aucune récurrence. À la saisie d'une dépense, choisis « Chaque mois » et le jour.</p>`}
+    ${act.map(r => `<div class="rec">
+      <div class="rec-h"><b>${esc(r.label || r.cat)}</b><span class="chip ${r.type === "in" ? "ok" : r.scope === "pro" ? "pro" : ""}">${r.type === "in" ? "Revenu" : r.scope === "pro" ? "Pro" : r.grp === "fixe" ? "Fondamental" : r.grp === "dieu" ? esc(dieuLabel()) : r.grp === "epargne" ? "Épargne" : "Variable"}</span></div>
+      <div class="rec-r">
+        <label class="f"><span>Jour</span><select data-rec="${r.id}" data-rk="day">${dayOptions(r.day)}</select></label>
+        <label class="f"><span>Montant (€)</span><input type="text" inputmode="decimal" data-rec="${r.id}" data-rk="amount" value="${String(r.amount).replace(".", ",")}"></label>
+        <label class="f"><span>Compte</span><select data-rec="${r.id}" data-rk="account_id">${accOpts(r.account_id)}</select></label>
+      </div>
+      <div class="small muted">Depuis ${new Date(r.start_month + "T12:00").toLocaleDateString("fr-FR", { month: "long", year: "numeric" })} · <button class="linkbtn" data-recstop="${r.id}">Arrêter</button></div>
+    </div>`).join("")}
+    <p class="note" style="margin:6px 0 0">Les changements s'appliquent aux prochains mois ; les lignes déjà ajoutées ne bougent pas.</p>
+  </div></div>`;
+}
 async function fetchAllFrom(table, order) {
   const out = []; let from = 0; const page = 1000;
   for (;;) {
@@ -305,7 +333,8 @@ function drawSheet(isNew, confirmDel) {
       ${s.type === "in" ? `<label class="f"><span>Statut</span><select id="f_status" ${d}><option value="paid" ${s.status !== "pending" ? "selected" : ""}>Encaissé</option><option value="pending" ${s.status === "pending" ? "selected" : ""}>En attente</option></select></label>` : ""}
     </div>
     ${isNew ? `<div class="f"><span class="small muted" style="font-weight:500">Fréquence</span><div class="seg"><button type="button" data-freq="once" aria-pressed="${s.freq !== "month"}">Ponctuelle</button><button type="button" data-freq="month" aria-pressed="${s.freq === "month"}">Chaque mois</button></div>
-      ${s.freq === "month" ? `<p class="note" style="margin:6px 0 0">Ajoutée automatiquement le ${+s.date.slice(8)} de chaque mois, jusqu'à ce que tu l'arrêtes.</p>` : ""}</div>`
+      ${s.freq === "month" ? `<div class="fgrid" style="margin-top:8px;align-items:end"><label class="f"><span>Jour du mois</span><select id="f_day">${dayOptions(s.recDay || +s.date.slice(8))}</select></label></div>
+      <p class="note" style="margin:6px 0 0">Ajoutée automatiquement le ${dayLabel(s.recDay || +s.date.slice(8))} de chaque mois, à partir du ${new Date(s.date + "T12:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}, jusqu'à ce que tu l'arrêtes.</p>` : ""}</div>`
     : rec ? `<div class="alert"><span class="dot"></span><div>Ligne récurrente : le ${rec.day} de chaque mois${rec.active ? "" : " (arrêtée)"}. ${!ro && rec.active ? `<button type="button" class="btn sm" id="stopRec">Arrêter la récurrence</button>` : ""}<br><span class="note">Modifier ce montant ne change que ce mois. ${!ro && rec.active ? `<button type="button" class="linkbtn" id="applyRec">Appliquer aussi aux prochains mois</button>` : ""}</span></div></div>` : ""}
     ${showStore ? `<div class="receipt">
       <div class="env-head"><b>Ticket de caisse</b>${s.receipt_path ? `<button type="button" class="linkbtn small" id="seeReceipt">Voir le ticket</button>` : ""}</div>
@@ -355,6 +384,8 @@ function bindSheet(isNew, ro) {
   const f = $("#txForm"), s = sheet; const say = m => { $("#sheetMsg").textContent = m; };
   f.querySelectorAll("[data-sw]").forEach(b => b.onclick = () => { pullSheet(); s[b.dataset.sw] = b.dataset.val; if (b.dataset.sw === "mode" && b.dataset.val !== "transfer") { s.type = b.dataset.val; s.group = b.dataset.val === "in" ? (s.scope === "pro" ? "ca" : "revenu") : (s.scope === "pro" ? "charge" : "variable"); s.cat = ""; } if (b.dataset.sw === "scope") { s.group = s.type === "in" ? (s.scope === "pro" ? "ca" : "revenu") : (s.scope === "pro" ? "charge" : "variable"); s.cat = ""; } drawSheet(isNew); });
   f.querySelectorAll("[data-freq]").forEach(b => b.onclick = () => { pullSheet(); s.freq = b.dataset.freq; drawSheet(isNew); });
+  const fd = $("#f_day"); if (fd) fd.onchange = () => { pullSheet(); s.recDay = +fd.value; s.date = dateWithDay(s.date, s.recDay); drawSheet(isNew); };
+  const fdt = $("#f_date"); if (fdt && s.freq === "month" && isNew) fdt.onchange = () => { pullSheet(); s.recDay = undefined; drawSheet(isNew); };
   const g = $("#f_group"); if (g) g.onchange = () => { pullSheet(); s.cat = ""; drawSheet(isNew); };
   const c = $("#f_cat"); if (c) c.onchange = () => { pullSheet(); drawSheet(isNew); };
   $("#closeSheet").onclick = closeSheet;
@@ -407,7 +438,7 @@ async function saveSheet(isNew, say) {
     let id = s.id;
     if (isNew) {
       if (s.freq === "month") {
-        const { data: r, error: re } = await sb.from("cpta_recurring").insert({ foyer_id: FOYER, type: body.type, scope: body.scope, grp: body.grp, cat: body.cat, label: body.label, amount: Math.abs(body.amount), day: +s.date.slice(8), account_id: body.account_id, store: body.store, method: body.method, start_month: s.date.slice(0, 7) + "-01" }).select("id").single();
+        const { data: r, error: re } = await sb.from("cpta_recurring").insert({ foyer_id: FOYER, type: body.type, scope: body.scope, grp: body.grp, cat: body.cat, label: body.label, amount: Math.abs(body.amount), day: s.recDay || +s.date.slice(8), account_id: body.account_id, store: body.store, method: body.method, start_month: s.date.slice(0, 7) + "-01" }).select("id").single();
         if (re) return fail(errMsg(re)); body.rec_id = r.id;
       }
       const { data, error } = await sb.from("cpta_tx").insert({ ...body, foyer_id: FOYER }).select("id").single();
@@ -517,5 +548,12 @@ function bindExtra() {
   const tr = $("#doTransfer"); if (tr) tr.onclick = () => openSheet(null, { mode: "transfer", label: "" });
   const aa = $("#addAcc2"); if (aa) aa.onclick = async () => { const { data, error } = await sb.from("cpta_accounts").insert({ foyer_id: FOYER, name: "Nouveau compte", kind: "courant", balance: 0, ord: ACC.length + 1, opening_date: todayIso() }).select("id").single(); if (error) toast(errMsg(error)); else { window._accOpen = data.id; refresh(); } };
   const pq = $("#prodq"); if (pq) pq.oninput = () => { window._prodq = pq.value; $("#prodres").innerHTML = prodHistory(pq.value); };
+  document.querySelectorAll("[data-rec]").forEach(e => { const h = () => debounce("rec" + e.dataset.rec + e.dataset.rk, async () => {
+      let v = e.value; if (e.dataset.rk === "day") v = +v; if (e.dataset.rk === "amount") { v = num(v); if (!v) { toast("Indique un montant"); return; } v = Math.abs(v); } if (e.dataset.rk === "account_id") v = v || null;
+      const { error } = await sb.from("cpta_recurring").update({ [e.dataset.rk]: v }).eq("id", e.dataset.rec);
+      if (error) toast(errMsg(error)); else { const r = REC.find(x => x.id === e.dataset.rec); if (r) r[e.dataset.rk] = v; toast(e.dataset.rk === "day" ? `Désormais le ${dayLabel(v)} de chaque mois` : "Récurrence mise à jour"); }
+    }, e.tagName === "SELECT" ? 0 : 800); e.onchange = h; if (e.tagName !== "SELECT") e.oninput = h; });
+  document.querySelectorAll("[data-recstop]").forEach(b => b.onclick = async () => { if (b.dataset.confirm !== "1") { b.dataset.confirm = "1"; b.textContent = "Confirmer l'arrêt"; return; }
+    const k = todayIso().slice(0, 7) + "-01"; const { error } = await sb.from("cpta_recurring").update({ active: false, end_month: k }).eq("id", b.dataset.recstop); if (error) toast(errMsg(error)); else { toast("Récurrence arrêtée"); refresh(); } });
   const pe = $("#s_persons"); if (pe) pe.oninput = () => debounce("persons", () => saveSettings({ persons: +pe.value || 0 }), 700);
 }
