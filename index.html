@@ -179,8 +179,8 @@ button.bl:hover{background:var(--sunk)}
 .item .fam{font-size:13px;color:var(--muted)}
 .rec{display:grid;gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}
 .rec-h{display:flex;justify-content:space-between;gap:8px;align-items:center}
-.rec-r{display:grid;grid-template-columns:minmax(90px,1fr) minmax(90px,1fr) minmax(120px,1.4fr);gap:8px}
-@media (max-width:420px){.rec-r{grid-template-columns:1fr 1fr}.rec-r label:last-child{grid-column:1/-1}}
+.rec-r{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (min-width:700px){.rec-r{grid-template-columns:repeat(4,1fr)}}
 /* comptes */
 .acc{display:grid;gap:10px}
 .acc-h{display:flex;justify-content:space-between;align-items:center;gap:10px;background:none;border:0;padding:0;text-align:left;width:100%}
