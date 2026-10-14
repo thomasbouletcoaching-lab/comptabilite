@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Comptabilité</title>
+<meta name="description" content="Comptabilité du foyer Boulet et de l'activité de coaching">
+<meta name="theme-color" content="#F3F5F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111613" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Comptabilité">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Schibsted+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Carnet de comptes : une colonne, en-tête de mois collant, onglets, saisie en feuille glissante */
+:root{
+  --bg:#F3F5F2; --surface:#FFFFFF; --sunk:#E8ECE7; --line:#D5DBD3;
+  --ink:#17201C; --muted:#5E6A63; --faint:#8C978F;
+  --foyer:#22704F; --foyer-soft:#DCEDE3;
+  --pro:#3A4FC4; --pro-soft:#E1E5FA;
+  --dieu:#9A6B12; --dieu-soft:#F4EAD3;
+  --pos:#1E7B47; --neg:#B83A2E; --warn:#A86A00; --neg-soft:#F7E1DE; --warn-soft:#F8ECD3;
+  --display:"Familjen Grotesk","Helvetica Neue",Arial,sans-serif;
+  --body:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --r:10px; color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#111613; --surface:#18201C; --sunk:#202923; --line:#2C3731;
+  --ink:#E7EDE9; --muted:#9BA8A0; --faint:#6F7C74;
+  --foyer:#5CC08F; --foyer-soft:#1C3328; --pro:#8E9DF5; --pro-soft:#22284A;
+  --dieu:#D9A64A; --dieu-soft:#3A2F17;
+  --pos:#5CC08F; --neg:#F07A6C; --warn:#E3A93D; --neg-soft:#3B201D; --warn-soft:#3A2D14; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);-webkit-text-size-adjust:100%;padding-top:env(safe-area-inset-top,0px)}
+[hidden]{display:none!important}
+.num,.amt{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+button,input,select{font:inherit;color:inherit}
+input,select{font-size:16px}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--pro);outline-offset:2px}
+.wrap{max-width:860px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 130px}
+
+header.top{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
+.top-in{max-width:860px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 0}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.brand h1{font:700 19px/1.1 var(--display);margin:0;letter-spacing:-.01em}
+.brand small{color:var(--muted);font-size:12px}
+.monthbar{display:flex;align-items:center;gap:6px;margin-top:10px}
+.monthbar button{border:1px solid var(--line);background:var(--surface);border-radius:8px;width:36px;height:36px;display:grid;place-items:center}
+.monthbar .m{flex:1;text-align:center;font:600 16px var(--display);text-transform:capitalize}
+.monthbar .m span{display:block;font:400 11px var(--body);color:var(--muted);text-transform:none}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;margin-top:10px;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{border:0;background:none;padding:9px 12px 10px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-color:var(--ink)}
+
+section.view{display:grid;gap:18px;padding-top:18px}
+h2{font:600 13px var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
+h3{font:600 17px var(--display);margin:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.muted{color:var(--muted)} .small{font-size:13px}
+.pos{color:var(--pos)} .neg{color:var(--neg)}
+.hero{display:grid;gap:4px}
+.hero .lab{color:var(--muted);font-size:13px}
+.hero .big{font:500 clamp(34px,8vw,48px)/1.05 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-top:12px}
+.flow div{background:var(--surface);padding:10px 12px;min-width:0}
+.flow .k{font-size:12px;color:var(--muted);line-height:1.3} .flow .v{font:500 16px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.03em}
+@media (max-width:440px){.flow .v{font-size:13px}.flow div{padding:9px 8px}}
+.env{display:grid;gap:14px}
+.env-row{display:grid;gap:5px}
+.env-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.env-head b{font-weight:600}
+.env-head .num{font-size:13px;color:var(--muted)}
+.bar{height:8px;border-radius:4px;background:var(--sunk);position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;border-radius:4px}
+.bar .over{background:var(--neg)!important}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;padding:2px 8px;border-radius:99px;white-space:nowrap;background:var(--sunk);color:var(--muted)}
+.chip.ok{background:var(--foyer-soft);color:var(--foyer)}
+.chip.bad{background:var(--neg-soft);color:var(--neg)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.pro{background:var(--pro-soft);color:var(--pro)}
+.chip.foyer{background:var(--foyer-soft);color:var(--foyer)}
+.alerts{display:grid;gap:8px}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--r);font-size:14px;border:1px solid var(--line);background:var(--surface)}
+.alert .dot{width:8px;height:8px;border-radius:50%;margin-top:7px;flex:none;background:var(--pos)}
+.alert.warn .dot{background:var(--warn)} .alert.bad .dot{background:var(--neg)}
+.rows{display:grid}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 0;border-bottom:1px solid var(--line);align-items:center}
+.row:last-child{border-bottom:0}
+.row .t{min-width:0;overflow-wrap:anywhere}
+.row .s{grid-column:1;font-size:12px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.row .amt{grid-row:1/span 2;grid-column:2;text-align:right;font-size:15px}
+button.row{background:none;border:0;border-bottom:1px solid var(--line);text-align:left;width:100%;padding-inline:0}
+button.row:hover{background:var(--sunk)}
+.dayhead{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;padding:14px 0 2px}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-weight:500;color:var(--muted);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);font-size:12px;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td{padding:8px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td:first-child{font-family:var(--body)}
+tr.cur td{background:var(--sunk)}
+.seg{display:inline-flex;background:var(--sunk);border-radius:8px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;padding:6px 11px;border-radius:6px;font-size:13px;font-weight:500;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input[type=text],input[type=email],input[type=password],input[type=number],input[type=date],input[type=search],select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%;min-width:0}
+label.f{display:grid;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+label.f > span{font-weight:500}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 14px;font-weight:500;font-size:14px}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.danger{color:var(--neg)}
+.btn.sm{padding:3px 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+.linkbtn{border:0;background:none;color:var(--pro);padding:0;font-weight:500;text-decoration:underline;text-underline-offset:3px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.check{display:flex;gap:8px;align-items:center;font-size:14px}
+.fab{position:fixed;right:calc(max(16px,env(safe-area-inset-right,0px)) + 4px);bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:30;height:54px;padding:0 20px;border-radius:27px;border:0;background:var(--ink);color:var(--bg);font:600 15px var(--body);box-shadow:0 6px 20px rgba(0,0,0,.22);display:flex;align-items:center;gap:8px}
+.fab svg{width:18px;height:18px}
+.scrim{position:fixed;inset:0;background:rgba(10,15,12,.45);z-index:40;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:92%;overflow-y:auto;padding:18px max(18px,env(safe-area-inset-left,0px)) calc(18px + env(safe-area-inset-bottom,0px));display:grid;gap:14px}
+@media (min-width:640px){.scrim{align-items:center}.sheet{border-radius:16px}}
+.sheet .amtin{font:500 34px var(--mono);border:0;border-bottom:2px solid var(--line);border-radius:0;padding:4px 0;background:none}
+.typesw{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.typesw button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px;font-weight:600}
+.typesw button:disabled{opacity:.45}
+.typesw button[aria-pressed="true"].in{background:var(--foyer-soft);border-color:var(--foyer);color:var(--foyer)}
+.typesw button[aria-pressed="true"].out{background:var(--neg-soft);border-color:var(--neg);color:var(--neg)}
+.typesw button[aria-pressed="true"].foy{background:var(--foyer-soft);border-color:var(--foyer);color:var(--foyer)}
+.typesw button[aria-pressed="true"].pr{background:var(--pro-soft);border-color:var(--pro);color:var(--pro)}
+.sheet-actions{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
+.confirm{background:var(--neg-soft);border-radius:8px;padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;z-index:50;max-width:calc(100% - 32px)}
+.empty{text-align:center;padding:40px 16px;color:var(--muted)}
+.empty h3{color:var(--ink);margin-bottom:6px}
+svg text{fill:var(--muted);font:11px var(--body)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.kv{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px}
+.kv .num{text-align:right}
+.kv .tot{border-top:1px solid var(--line);padding-top:6px;font-weight:600}
+.note{font-size:12px;color:var(--faint)}
+/* écran de connexion */
+.auth{min-height:calc(100vh - env(safe-area-inset-top,0px));display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-left,0px))}
+.auth form{width:100%;max-width:380px;display:grid;gap:14px}
+.auth .mark{width:56px;height:56px;border-radius:14px}
+.auth h1{font:700 30px/1.05 var(--display);margin:0;letter-spacing:-.02em}
+.auth p{margin:0}
+.auth .err{color:var(--neg);font-size:14px}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .4s ease}}
+</style>
+</head>
+<body>
+
+<div id="authHost"></div>
+
+<div id="app" hidden>
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><h1>Comptabilité</h1><small id="who">—</small></div>
+    <div class="monthbar">
+      <button id="prevM" aria-label="Mois précédent"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="m" id="mLabel">—</div>
+      <button id="nextM" aria-label="Mois suivant"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="m6 3 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+    <nav class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-v="apercu" aria-selected="true">Aperçu</button>
+      <button role="tab" data-v="journal" aria-selected="false">Journal</button>
+      <button role="tab" data-v="pro" aria-selected="false">Activité pro</button>
+      <button role="tab" data-v="annee" aria-selected="false">Année</button>
+      <button role="tab" data-v="comptes" aria-selected="false">Comptes</button>
+      <button role="tab" data-v="reglages" aria-selected="false">Réglages</button>
+    </nav>
+  </div>
+</header>
+<main class="wrap" id="main"><section class="view"><div class="empty"><h3>Chargement</h3><p>Récupération de vos comptes…</p></div></section></main>
+<button class="fab" id="fab" hidden><svg viewBox="0 0 18 18" fill="none"><path d="M9 3v12M3 9h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Saisir</button>
+</div>
+<div id="sheetHost"></div>
+<div id="toastHost"></div>
+
+<script src="supabase.js"></script>
+<script>
+/* ===================== Connexion Supabase ===================== */
+const SB_URL="https://xtapitojdvicgcaygeqj.supabase.co";
+const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0YXBpdG9qZHZpY2djYXlnZXFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3NTY2NzQsImV4cCI6MjEwNjMzMjY3NH0.wOJNIuMSOX3_LAMoXreBsTp8NQA61qiSenyvjGivK5E";
+const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:"compta-auth"}});
+
+/* ===================== Référentiel ===================== */
+const MOIS=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+const MICRO={ // taux 2026, service-public.gouv.fr (vérifié le 1er janvier 2026)
+  vente:{label:"Vente de marchandises (BIC)",rate:12.3,vl:1.0,plafond:203100},
+  services_bic:{label:"Prestations de services commerciales / artisanales (BIC)",rate:21.2,vl:1.7,plafond:83600},
+  bnc_ssi:{label:"Libéral non réglementé (BNC, SSI) — ex. coach sportif",rate:25.6,vl:2.2,plafond:83600},
+  bnc_cipav:{label:"Libéral réglementé (BNC, Cipav)",rate:23.2,vl:2.2,plafond:83600},
+  meuble:{label:"Location meublée d'habitation",rate:21.2,vl:1.7,plafond:83600},
+};
+const REGIMES={
+  micro:"Micro-entreprise (auto-entrepreneur)",
+  reel:"Entreprise individuelle au réel",
+  societe_is:"Société à l'IS, dirigeant TNS (EURL, SARL majoritaire)",
+  sasu:"Société à l'IS, dirigeant assimilé salarié (SASU, SAS)",
+  salarie:"Pas d'activité indépendante",
+};
+const CATS={
+  foyer:{
+    in:{revenu:["Salaire","CAF","Pension alimentaire","Dons reçus","Remboursement","Autre revenu"]},
+    out:{
+      fixe:["Logement","Énergie","Assurances","Transport","Téléphone & internet","Abonnements","Crédit","Impôts","Garde & scolarité"],
+      variable:["Courses","Restaurants","Sport","Vêtements","Beauté & coiffure","Santé","Enfants","Maison","Loisirs","Déplacements","Voyages","Cadeaux","Tech","Administratif","Charité","Divers"],
+      dieu:["Dîme & offrandes"],
+      epargne:["Virement épargne","Investissement"],
+    }},
+  pro:{
+    in:{ca:["Cycle 12 semaines","Séance ponctuelle","Pack de séances","Programme personnalisé","Pack de démarrage","Coaching allégé","Coaching 1x/sem","Coaching 1x/sem + programme","Coaching avancé 2x/sem","Coaching avancé 2x/sem + programme","Coaching premium 5x/sem","Suivi 100 % à distance","Autre prestation"]},
+    out:{charge:["Location salle","Logiciels","Assurance pro","Matériel","Marketing","Formation","Banque & frais","Déplacements pro","Comptabilité","Autre charge"],
+         urssaf:["Paiement URSSAF"]}}
+};
+const GROUP_LABEL={revenu:"Revenu",fixe:"Fondamental",variable:"Variable",dieu:"Partie pour Dieu",epargne:"Épargne",ca:"Chiffre d'affaires",charge:"Charge pro",urssaf:"URSSAF"};
+const DEFAULT_SETTINGS={regime:"micro",activity:"bnc_ssi",vl:false,acre:"none",cfp:0,declaration:"quarter",paidPeriods:[],split:{dieu:10,epargne:25,fixe:50,variable:15},netGoal:2000,reelRate:45,isRate:15,dirigeantRate:45,plafond:83600,tvaSeuil:37500,owner:"",household:""};
+
+/* ===================== État ===================== */
+let ME=null, ROLE=null, TX=[], ACC=[], MEMBERS=[], S={...DEFAULT_SETTINGS}, ready=false;
+let view="apercu"; const now0=new Date(); let cur={y:now0.getFullYear(),m:now0.getMonth()+1};
+let jFilter={scope:"all",type:"all",who:"all",q:"",span:"month"};
+try{const v=localStorage.getItem("compta.view");if(v)view=v;const jf=localStorage.getItem("compta.jf");if(jf)Object.assign(jFilter,JSON.parse(jf),{q:""});}catch(e){}
+const isOwner=()=>ROLE==="owner";
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const eur=(n,d=2)=>(n<0?"−":"")+Math.abs(n).toLocaleString("fr-FR",{minimumFractionDigits:d,maximumFractionDigits:d})+" €";
+const eur0=n=>eur(n,0);
+const sgn=n=>(n>0?"+":"")+eur(n);
+const pct=n=>(isFinite(n)?n:0).toLocaleString("fr-FR",{maximumFractionDigits:1})+" %";
+const mkey=(y,m)=>`${y}-${String(m).padStart(2,"0")}`;
+const curKey=()=>mkey(cur.y,cur.m);
+const prevKey=()=>mkey(cur.m===1?cur.y-1:cur.y,cur.m===1?12:cur.m-1);
+const qOf=m=>Math.ceil(m/3);
+const sum=(a,f=t=>t.amount)=>a.reduce((s,t)=>s+(+f(t)||0),0);
+const memberName=id=>(MEMBERS.find(m=>m.user_id===id)||{}).name||"";
+
+/* ===================== Chargement ===================== */
+async function fetchAllTx(){
+  const out=[];let from=0;const page=1000;
+  for(;;){const {data,error}=await sb.from("compta_tx").select("*").order("date",{ascending:false}).order("created_at",{ascending:false}).range(from,from+page-1);
+    if(error)throw error;out.push(...data);if(data.length<page)break;from+=page;}
+  return out;
+}
+async function loadAll(){
+  const [tx,st,ac,mb,cp]=await Promise.all([
+    fetchAllTx(),
+    sb.from("compta_settings").select("data").eq("id",1).maybeSingle(),
+    sb.from("compta_accounts").select("*").order("ord"),
+    sb.from("compta_members").select("*").order("added_at"),
+    sb.rpc("compta_coaching_payments"),
+  ]);
+  TX=tx.map(r=>({id:r.id,date:r.date,month:r.date.slice(0,7),type:r.type,scope:r.scope,group:r.grp,cat:r.cat,label:r.label,amount:+r.amount,status:r.status,method:r.method,client:r.client,created_by:r.created_by}));
+  if(!cp.error&&cp.data) cp.data.forEach(p=>{if(!p.paid_at)return;TX.push({id:"coach-"+p.id,date:p.paid_at,month:p.paid_at.slice(0,7),type:"in",scope:"pro",group:"ca",cat:p.label||"Paiement client",label:p.client_name||"Client",client:p.client_name||"",amount:+p.amount,status:"paid",method:p.method||"",source:"coach"})});
+  S={...DEFAULT_SETTINGS,...((st.data&&st.data.data)||{})};S.split={...DEFAULT_SETTINGS.split,...(S.split||{})};
+  ACC=(ac.data||[]).map(a=>({...a,balance:+a.balance}));
+  MEMBERS=mb.data||[];
+  ready=true;
+}
+async function refresh(){try{await loadAll();render();}catch(e){toast("Connexion impossible, vérifie le réseau");}}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&ME&&ROLE&&!sheet)refresh();});
+
+/* ===================== Calculs fiscaux ===================== */
+function microTotalRate(){
+  const a=MICRO[S.activity]||MICRO.bnc_ssi;
+  const acre=S.acre==="half"?.5:S.acre==="threeq"?.75:1;
+  return {social:a.rate*acre, vl:S.vl?a.vl:0, cfp:+S.cfp||0, get total(){return this.social+this.vl+this.cfp}};
+}
+function proCalc(ca,charges){
+  if(S.regime==="micro"){const r=microTotalRate();const cot=ca*r.total/100;return {cotis:cot,ir:0,net:ca-cot-charges};}
+  if(S.regime==="reel"){const b=Math.max(0,ca-charges);const cot=b*(+S.reelRate||0)/100;return {cotis:cot,ir:0,net:ca-charges-cot};}
+  if(S.regime==="societe_is"||S.regime==="sasu"){const res=ca-charges;const cot=Math.max(0,res)*(+S.dirigeantRate||0)/100;const is=Math.max(0,res-cot)*(+S.isRate||0)/100;return {cotis:cot,ir:is,net:res-cot-is};}
+  return {cotis:0,ir:0,net:0};
+}
+function proMonth(key){
+  const rows=TX.filter(t=>t.scope==="pro"&&t.month===key);
+  const ca=sum(rows.filter(t=>t.type==="in"&&t.status!=="pending"));
+  const pending=sum(rows.filter(t=>t.type==="in"&&t.status==="pending"));
+  const charges=sum(rows.filter(t=>t.type==="out"&&t.group!=="urssaf"));
+  return {ca,pending,charges,...proCalc(ca,charges)};
+}
+function foyerMonth(key){
+  const rows=TX.filter(t=>t.scope==="foyer"&&t.month===key);
+  const inc=rows.filter(t=>t.type==="in");
+  const by=g=>sum(rows.filter(t=>t.type==="out"&&t.group===g));
+  const pro=S.regime==="salarie"?{net:0}:proMonth(key);
+  const incomes=sum(inc)+pro.net;
+  const fixe=by("fixe"),variable=by("variable"),dieu=by("dieu");
+  const depenses=fixe+variable+dieu;
+  return {rows,inc,proNet:pro.net,incomes,fixe,variable,dieu,depenses,impact:incomes-depenses};
+}
+function periodsOfYear(y){
+  if(S.declaration==="month") return Array.from({length:12},(_,i)=>({id:mkey(y,i+1),label:MOIS[i]+" "+y,months:[mkey(y,i+1)],due:new Date(y,i+2,0)}));
+  return [1,2,3,4].map(q=>({id:`${y}-T${q}`,label:`T${q} ${y}`,months:[1,2,3].map(k=>mkey(y,(q-1)*3+k)),due:new Date(y,q*3+1,0)}));
+}
+function urssafOwed(){
+  let owed=0;const list=[];
+  [cur.y-1,cur.y].forEach(y=>periodsOfYear(y).forEach(p=>{
+    const c=sum(p.months.map(proMonth),x=>x.cotis);if(c<=0)return;
+    if(!(S.paidPeriods||[]).includes(p.id)){owed+=c;list.push({...p,cotis:c});}
+  }));
+  return {owed,list};
+}
+function niceTicks(max){const step=Math.pow(10,Math.floor(Math.log10(max)));const s=[1,2,2.5,5,10].map(k=>k*step).find(v=>max/v<=4)||step*10;const out=[];for(let v=0;v<=max+s*0.999;v+=s)out.push(v);if(out.at(-1)<max)out.push(out.at(-1)+s);return out;}
+function curKeyNow(){const n=new Date();return mkey(n.getFullYear(),n.getMonth()+1);}
+function monthsElapsed(y){const n=new Date();return y<n.getFullYear()?12:y>n.getFullYear()?1:n.getMonth()+1;}
+
+/* ===================== Rendu ===================== */
+function setView(v){view=v;try{localStorage.setItem("compta.view",v)}catch(e){}render();window.scrollTo({top:0});}
+function render(){
+  if(!ready)return;
+  document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.v===view));
+  $("#mLabel").innerHTML=`${MOIS[cur.m-1]} ${cur.y}<span>${view==="annee"||view==="pro"?"année "+cur.y+" · T"+qOf(cur.m):"mois affiché"}</span>`;
+  $("#fab").hidden=view==="reglages";
+  const fn={apercu:vApercu,journal:vJournal,pro:vPro,annee:vAnnee,comptes:vComptes,reglages:vReglages}[view]||vApercu;
+  const ae=document.activeElement,key=ae&&ae.closest&&ae.closest("#main")?(ae.id?"#"+ae.id:[...ae.attributes].filter(a=>a.name.startsWith("data-")).map(a=>`[${a.name}="${a.value}"]`).join("")):null;
+  let sel=null;try{sel=key&&ae.selectionStart!=null?[ae.selectionStart,ae.selectionEnd]:null}catch(e){}
+  $("#main").innerHTML=`<section class="view">${fn()}</section>`;
+  bindView();
+  if(key){const n=document.querySelector("#main "+key);if(n){n.focus({preventScroll:true});try{if(sel)n.setSelectionRange(sel[0],sel[1])}catch(e){}}}
+}
+
+function vApercu(){
+  const f=foyerMonth(curKey());
+  if(!TX.length) return `<div class="empty"><h3>Aucune ligne pour l'instant</h3><p>Ajoute ta première entrée avec le bouton « Saisir » : un salaire, une course, une séance encaissée.</p></div>`;
+  const sp=S.split,inc=f.incomes;
+  const envs=[{l:"Partie pour Dieu",p:sp.dieu,v:f.dieu,c:"var(--dieu)"},{l:"Fondamental (besoins)",p:sp.fixe,v:f.fixe,c:"var(--foyer)"},{l:"Dépenses variables",p:sp.variable,v:f.variable,c:"var(--pro)"}];
+  const envHtml=envs.map(e=>{const b=inc*e.p/100,r=b>0?e.v/b:0;const over=e.v>b+0.005;
+    return `<div class="env-row"><div class="env-head"><b>${e.l}</b><span class="num">${eur0(e.v)} / ${eur0(b)} · objectif ${e.p} %</span></div>
+    <div class="bar"><i class="${over?"over":""}" style="width:${Math.min(100,r*100)}%;background:${e.c}"></i></div>
+    <div class="small">${over?`<span class="chip bad">Dépassé de ${eur0(e.v-b)}</span>`:`<span class="chip ok">Reste ${eur0(b-e.v)}</span>`} <span class="muted">${pct(inc>0?e.v/inc*100:0)} des revenus</span></div></div>`}).join("");
+  const epObj=inc*sp.epargne/100,epR=f.impact;
+  const epHtml=`<div class="env-row"><div class="env-head"><b>Épargne</b><span class="num">${eur0(epR)} / ${eur0(epObj)} · objectif ${sp.epargne} %</span></div>
+    <div class="bar"><i class="${epR<0?"over":""}" style="width:${epR<0?100:Math.min(100,epObj>0?epR/epObj*100:0)}%;background:var(--ink)"></i></div>
+    <div class="small">${epR<0?`<span class="chip bad">Mois déficitaire : ${eur0(-epR)} pris sur l'épargne</span>`:epR>=epObj?`<span class="chip ok">Objectif atteint</span>`:`<span class="chip warn">Il manque ${eur0(epObj-epR)}</span>`}</div></div>`;
+  const incRows=[];
+  if(S.regime!=="salarie") incRows.push({l:"Activité pro (net après charges)",v:f.proNet,pro:true});
+  const g={};f.inc.forEach(t=>{const k=t.cat==="Salaire"?(t.label||"Salaire"):t.cat;g[k]=(g[k]||0)+t.amount});
+  Object.entries(g).sort((a,b)=>b[1]-a[1]).forEach(([l,v])=>incRows.push({l,v}));
+  const vc={};f.rows.filter(t=>t.type==="out"&&t.group==="variable").forEach(t=>vc[t.cat]=(vc[t.cat]||0)+t.amount);
+  const topV=Object.entries(vc).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const prev=foyerMonth(prevKey());
+  return `
+  <div class="card hero">
+    <div class="lab">Impact sur l'épargne · ${MOIS[cur.m-1]}</div>
+    <div class="big ${f.impact>=0?"pos":"neg"}">${sgn(f.impact)}</div>
+    <div class="small muted">${prev.incomes||prev.depenses?`Mois précédent : <span class="num">${sgn(prev.impact)}</span>`:""}</div>
+    <div class="flow">
+      <div><div class="k">Revenus</div><div class="v">${eur(f.incomes)}</div></div>
+      <div><div class="k">Dépenses</div><div class="v">${eur(f.depenses)}</div></div>
+      <div><div class="k">Reste à vivre</div><div class="v ${inc-f.fixe-f.dieu>=0?"":"neg"}">${eur(inc-f.fixe-f.dieu)}</div></div>
+    </div>
+  </div>
+  ${alertsHtml()}
+  <div><h2>Enveloppes du mois</h2><div class="card env">${envHtml}${epHtml}</div></div>
+  <div class="grid2">
+    <div><h2>D'où vient l'argent</h2><div class="card rows">${incRows.map(r=>`<div class="row"><div class="t">${esc(r.l)}</div><div class="s">${r.pro?'<span class="chip pro">Pro</span>':'<span class="chip foyer">Foyer</span>'}</div><div class="amt ${r.v<0?"neg":""}">${eur(r.v)}</div></div>`).join("")||'<p class="muted">Aucun revenu ce mois-ci.</p>'}</div></div>
+    <div><h2>Dépenses variables</h2><div class="card rows">${topV.map(([c,v])=>`<div class="row"><div class="t">${esc(c)}</div><div class="s">${pct(f.variable?v/f.variable*100:0)} du variable</div><div class="amt">${eur(v)}</div></div>`).join("")||'<p class="muted">Rien de dépensé en variable ce mois-ci.</p>'}</div></div>
+  </div>`;
+}
+
+function alertsHtml(){
+  const out=[];const now=new Date();
+  if(S.regime==="micro"||S.regime==="reel"){
+    urssafOwed().list.forEach(p=>{const days=Math.ceil((p.due-now)/864e5);
+      if(p.due<new Date(now.getFullYear(),now.getMonth()+3,1)) out.push({c:days<0?"bad":days<=21?"warn":"ok",h:`URSSAF ${p.label} : <b class="num">${eur(p.cotis)}</b> à déclarer et payer avant le ${p.due.toLocaleDateString("fr-FR",{day:"numeric",month:"long"})}${days<0?` · en retard de ${-days} j`:` · dans ${days} j`}.`,id:p.id});});
+  }
+  if(S.regime==="micro"){
+    const ytd=sum(Array.from({length:12},(_,i)=>proMonth(mkey(cur.y,i+1))),x=>x.ca);
+    if(ytd>S.tvaSeuil*0.85) out.push({c:ytd>S.tvaSeuil?"bad":"warn",h:`Chiffre d'affaires ${cur.y} : <b class="num">${eur0(ytd)}</b>, soit ${pct(ytd/S.tvaSeuil*100)} du seuil de franchise de TVA (${eur0(S.tvaSeuil)}).`});
+  }
+  const pend=TX.filter(t=>t.status==="pending"&&t.type==="in");
+  if(pend.length) out.push({c:"warn",h:`${pend.length} paiement${pend.length>1?"s":""} client en attente pour <b class="num">${eur(sum(pend))}</b>.`});
+  if(!out.length) return "";
+  return `<div class="alerts">${out.map(a=>`<div class="alert ${a.c}"><span class="dot"></span><div>${a.h}${a.id&&isOwner()?` <button class="btn sm" data-pay="${a.id}">Marquer payé</button>`:""}</div></div>`).join("")}</div>`;
+}
+
+function txRow(t){
+  const isIn=t.type==="in";
+  const meta=[t.scope==="pro"?'<span class="chip pro">Pro</span>':'<span class="chip foyer">Foyer</span>',esc(t.cat)];
+  if(t.source==="coach")meta.push('<span class="chip">TB my Coach</span>');
+  if(t.status==="pending")meta.push('<span class="chip warn">En attente</span>');
+  const nm=memberName(t.created_by);if(nm&&MEMBERS.length>1)meta.push(esc(nm));
+  if(t.method)meta.push(esc(t.method));
+  const amt=`${isIn?"+":"−"}${eur(Math.abs(t.amount)).replace("−","")}`;
+  return `<button class="row" data-edit="${t.id}"><div class="t">${esc(t.label||t.cat)}</div><div class="s">${meta.join(" · ")}</div><div class="amt ${isIn?"pos":""}">${amt}</div></button>`;
+}
+function vJournal(){
+  const k=curKey();
+  let rows=TX.filter(t=>jFilter.span==="year"?t.month.startsWith(String(cur.y)):t.month===k);
+  if(jFilter.scope!=="all")rows=rows.filter(t=>t.scope===jFilter.scope);
+  if(jFilter.type!=="all")rows=rows.filter(t=>t.type===jFilter.type);
+  if(jFilter.who!=="all")rows=rows.filter(t=>t.created_by===jFilter.who);
+  if(jFilter.q){const q=jFilter.q.toLowerCase();rows=rows.filter(t=>(t.label+" "+t.cat+" "+(t.client||"")).toLowerCase().includes(q));}
+  rows.sort((a,b)=>b.date.localeCompare(a.date)||(a.type===b.type?b.amount-a.amount:a.type==="in"?-1:1));
+  const tin=sum(rows.filter(t=>t.type==="in")),tout=sum(rows.filter(t=>t.type==="out"));
+  const groups={};rows.forEach(t=>{const key=jFilter.span==="year"?t.month:t.date;(groups[key]=groups[key]||[]).push(t)});
+  const head=key=>{if(jFilter.span==="year"){const m=+key.slice(5);return MOIS[m-1]+" "+key.slice(0,4);}const d=new Date(key+"T12:00");return d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});};
+  const seg=(name,opts)=>`<div class="seg">${opts.map(([v,l])=>`<button data-jf="${name}" data-val="${v}" aria-pressed="${jFilter[name]===v}">${l}</button>`).join("")}</div>`;
+  const recurN=TX.filter(t=>t.month===prevKey()&&!t.source&&(t.group==="fixe"||(t.group==="charge"&&isOwner()))).length;
+  const whoSeg=MEMBERS.filter(m=>m.user_id).length>1?seg("who",[["all","Tous"],...MEMBERS.filter(m=>m.user_id).map(m=>[m.user_id,esc(m.name)])]):"";
+  return `
+  <div class="toolbar">${seg("span",[["month","Ce mois"],["year","Année"]])}${seg("scope",[["all","Tout"],["foyer","Foyer"],["pro","Pro"]])}${seg("type",[["all","Tous"],["in","Entrées"],["out","Sorties"]])}${whoSeg}</div>
+  <input type="search" id="jq" placeholder="Chercher un libellé, un client, une catégorie" value="${esc(jFilter.q)}">
+  <div class="flow" style="margin:0"><div><div class="k">Entrées</div><div class="v pos">${eur(tin)}</div></div><div><div class="k">Sorties</div><div class="v">${eur(tout)}</div></div><div><div class="k">Lignes</div><div class="v">${rows.length}</div></div></div>
+  ${jFilter.span==="month"&&recurN?`<div class="alert"><span class="dot"></span><div>Recopie les ${recurN} charges fixes de ${MOIS[(cur.m+10)%12]} dans ${MOIS[cur.m-1]}. <button class="btn sm" id="copyRecur">Recopier</button></div></div>`:""}
+  <div class="card" style="padding-block:4px">${Object.keys(groups).length?Object.entries(groups).map(([d,l])=>`<div class="dayhead">${head(d)}</div>${l.map(txRow).join("")}`).join(""):`<div class="empty" style="padding:24px">Aucune ligne pour ces filtres.</div>`}</div>
+  <div class="toolbar"><button class="btn" id="exportCsv">Télécharger en CSV</button><button class="btn" id="copyCsv">Copier pour Google Sheets</button></div>`;
+}
+
+function vPro(){
+  if(S.regime==="salarie") return `<div class="empty"><h3>Pas d'activité indépendante</h3><p>Choisis le statut dans Réglages pour suivre chiffre d'affaires et cotisations.</p></div>`;
+  const y=cur.y,months=Array.from({length:12},(_,i)=>({i,k:mkey(y,i+1),...proMonth(mkey(y,i+1))}));
+  const ytd={ca:sum(months,m=>m.ca),cotis:sum(months,m=>m.cotis),charges:sum(months,m=>m.charges),net:sum(months,m=>m.net),ir:sum(months,m=>m.ir)};
+  const r=S.regime==="micro"?microTotalRate():null;
+  const now=new Date();
+  const pers=periodsOfYear(y).map(p=>{const ms=p.months.map(proMonth);return {...p,ca:sum(ms,x=>x.ca),cotis:sum(ms,x=>x.cotis),net:sum(ms,x=>x.net),paid:(S.paidPeriods||[]).includes(p.id)}}).filter(p=>p.ca>0||p.due>=new Date(y,cur.m-1,1));
+  const perRows=pers.map(p=>{const st=p.paid?'<span class="chip ok">Payé</span>':p.ca===0?'<span class="chip">—</span>':p.due<now?'<span class="chip bad">En retard</span>':(p.months.at(-1)<curKeyNow()?'<span class="chip warn">À payer</span>':'<span class="chip pro">En cours</span>');
+    return `<tr class="${p.months.includes(curKey())?"cur":""}"><td>${p.label}<br><span class="note">avant le ${p.due.toLocaleDateString("fr-FR",{day:"numeric",month:"short"})}</span></td><td>${eur0(p.ca)}</td><td>${eur(p.cotis)}</td><td>${eur0(p.net)}</td><td style="font-family:var(--body)">${st}${p.ca>0&&isOwner()?` <button class="btn sm" data-pay="${p.id}">${p.paid?"Annuler":"Payé"}</button>`:""}</td></tr>`}).join("");
+  const cl={};TX.filter(t=>t.scope==="pro"&&t.type==="in"&&t.month.startsWith(String(y))).forEach(t=>{const names=(t.client||t.label||"").split(/[;+,]/).map(s=>s.trim()).filter(Boolean);names.forEach(n=>{cl[n]=cl[n]||{v:0,months:new Set()};cl[n].v+=t.amount/names.length;cl[n].months.add(t.month)})});
+  const top=Object.entries(cl).sort((a,b)=>b[1].v-a[1].v).slice(0,8);
+  const active=Math.max(1,months.filter(m=>m.ca>0||m.charges>0).length);
+  const chargesAvg=ytd.charges/active;
+  let caNeed;
+  if(S.regime==="micro")caNeed=(S.netGoal+chargesAvg)/(1-r.total/100);
+  else if(S.regime==="reel")caNeed=S.netGoal/(1-S.reelRate/100)+chargesAvg;
+  else caNeed=S.netGoal/((1-S.dirigeantRate/100)*(1-S.isRate/100))+chargesAvg;
+  const curM=months[cur.m-1];
+  const plaf=S.regime==="micro"?(MICRO[S.activity]?.plafond||S.plafond):null;
+  const maxV=Math.max(1,...months.map(m=>m.ca));
+  const W=600,H=170,pb=22,bw=W/12,ticks=niceTicks(maxV),top_=ticks.at(-1);
+  const bars=months.map((m,i)=>{const h=(m.ca/top_)*(H-pb-8),hn=Math.max(0,m.net/top_)*(H-pb-8);const x=i*bw+bw*.18,w=bw*.64;
+    return `<rect x="${x}" y="${H-pb-h}" width="${w}" height="${h}" rx="2" fill="var(--pro-soft)"/><rect x="${x}" y="${H-pb-hn}" width="${w}" height="${hn}" rx="2" fill="var(--pro)" opacity="${m.k===curKey()?1:.8}"/><text x="${x+w/2}" y="${H-6}" text-anchor="middle">${MOIS[i].slice(0,3)}</text>`}).join("");
+  const grid=ticks.map(t=>{const yy=H-pb-(t/top_)*(H-pb-8);return `<line x1="0" x2="${W}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${W-2}" y="${Math.max(11,yy-3)}" text-anchor="end">${t>=1000?(t/1000).toLocaleString("fr-FR")+" k":t}</text>`}).join("");
+  return `
+  <div class="card hero">
+    <div class="lab">Revenu net pro · ${MOIS[cur.m-1]}</div>
+    <div class="big">${eur(curM.net)}</div>
+    <div class="flow">
+      <div><div class="k">Encaissé</div><div class="v">${eur(curM.ca)}</div></div>
+      <div><div class="k">${S.regime==="micro"?"URSSAF ("+pct(r.total)+")":"Cotisations"}</div><div class="v">${eur(curM.cotis+curM.ir)}</div></div>
+      <div><div class="k">Charges pro</div><div class="v">${eur(curM.charges)}</div></div>
+    </div>
+    ${curM.pending?`<div class="small"><span class="chip warn">${eur(curM.pending)} en attente de paiement</span></div>`:""}
+  </div>
+  <div><h2>Chiffre d'affaires ${y}</h2><div class="card">
+    <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Chiffre d'affaires et revenu net par mois">${grid}${bars}</svg>
+    <div class="legend"><span><i style="background:var(--pro-soft)"></i>Chiffre d'affaires encaissé</span><span><i style="background:var(--pro)"></i>Revenu net</span></div>
+    <div class="kv" style="margin-top:12px">
+      <span>Chiffre d'affaires cumulé</span><span class="num">${eur(ytd.ca)}</span>
+      <span>${S.regime==="micro"?"Cotisations URSSAF":"Cotisations sociales (estimation)"}</span><span class="num">−${eur(ytd.cotis).replace("−","")}</span>
+      ${ytd.ir?`<span>Impôt sur les sociétés (estimation)</span><span class="num">−${eur(ytd.ir)}</span>`:""}
+      <span>Charges pro</span><span class="num">−${eur(ytd.charges)}</span>
+      <span class="tot">Revenu net cumulé</span><span class="num tot">${eur(ytd.net)}</span>
+    </div>
+  </div></div>
+  <div><h2>Déclarations URSSAF</h2><div class="card tbl"><table><thead><tr><th>Période</th><th>CA</th><th>Cotisations</th><th>Net</th><th>Statut</th></tr></thead><tbody>${perRows}</tbody></table>
+  <p class="note" style="margin:10px 0 0">${S.regime==="micro"?`Taux appliqué : ${pct(r.social)} de cotisations${S.vl?` + ${pct(r.vl)} de versement libératoire`:""}${r.cfp?` + ${pct(r.cfp)} de formation`:""}, sur le chiffre d'affaires encaissé. Déclaration ${S.declaration==="month"?"mensuelle":"trimestrielle"}.`:"Estimation : le montant réel dépend de ta déclaration annuelle de revenus."}</p></div></div>
+  <div class="grid2">
+    <div><h2>Objectif de revenu</h2><div class="card" style="display:grid;gap:10px">
+      <label class="f"><span>Revenu net mensuel visé</span><input type="number" id="netGoal" inputmode="decimal" value="${S.netGoal}" step="100" ${isOwner()?"":"disabled"}></label>
+      <div class="kv"><span>Chiffre d'affaires mensuel nécessaire</span><span class="num"><b>${eur0(caNeed)}</b></span>
+      <span>Moyenne encaissée ${y}</span><span class="num">${eur0(ytd.ca/Math.max(1,months.filter(m=>m.ca>0).length))}</span>
+      <span>Clients actifs au cycle 12 semaines (1 600 €)</span><span class="num">${(caNeed/(1600/3)).toLocaleString("fr-FR",{maximumFractionDigits:1})}</span></div>
+      <p class="note" style="margin:0">Intègre tes charges pro moyennes (${eur0(chargesAvg)}/mois).</p>
+    </div></div>
+    ${plaf?`<div><h2>Seuils ${y}</h2><div class="card env">
+      ${[["Plafond micro-entreprise",plaf],["Franchise de TVA",S.tvaSeuil]].map(([l,v])=>`<div class="env-row"><div class="env-head"><b>${l}</b><span class="num">${eur0(ytd.ca)} / ${eur0(v)}</span></div><div class="bar"><i class="${ytd.ca>v?"over":""}" style="width:${Math.min(100,ytd.ca/v*100)}%;background:var(--pro)"></i></div><div class="small muted">${ytd.ca>v?"Seuil dépassé":"Marge restante "+eur0(v-ytd.ca)}</div></div>`).join("")}
+      <p class="note" style="margin:0">Projection fin d'année au rythme actuel : ${eur0(ytd.ca/monthsElapsed(y)*12)}.</p>
+    </div></div>`:""}
+  </div>
+  <div><h2>Clients ${y}</h2><div class="card rows">${top.map(([n,o])=>`<div class="row"><div class="t">${esc(n)}</div><div class="s">${o.months.size} mois facturé${o.months.size>1?"s":""}</div><div class="amt">${eur0(o.v)}</div></div>`).join("")||'<p class="muted">Aucun encaissement enregistré.</p>'}</div>
+  <p class="note">Quand une ligne regroupe plusieurs clients, le montant est réparti à parts égales. Les paiements marqués « payé » dans TB my Coach s'ajoutent ici automatiquement.</p></div>
+  ${simuHtml(ytd)}`;
+}
+function simuHtml(ytd){
+  const n=monthsElapsed(cur.y);const ca=ytd.ca/n*12,ch=ytd.charges/n*12;
+  const saved={...S};const res={};
+  [["micro","Micro-entreprise"],["reel","EI au réel"],["societe_is","EURL à l'IS"],["sasu","SASU"]].forEach(([k,l])=>{S.regime=k;res[k]={l,...proCalc(ca,ch)}});
+  S=saved;
+  const best=Object.entries(res).sort((a,b)=>b[1].net-a[1].net)[0][0];
+  return `<div><h2>Comparer les statuts</h2><div class="card tbl">
+  <p class="small muted" style="margin:0 0 10px">Sur ton rythme ${cur.y} projeté à 12 mois : ${eur0(ca)} de chiffre d'affaires et ${eur0(ch)} de charges.</p>
+  <table><thead><tr><th>Statut</th><th>Prélèvements</th><th>Net annuel</th><th>Par mois</th></tr></thead><tbody>
+  ${Object.entries(res).map(([k,v])=>`<tr class="${k===S.regime?"cur":""}"><td>${v.l}${k===best?' <span class="chip ok">le plus favorable</span>':""}</td><td>${eur0(v.cotis+v.ir)}</td><td>${eur0(v.net)}</td><td>${eur0(v.net/12)}</td></tr>`).join("")}
+  </tbody></table>
+  <p class="note" style="margin:10px 0 0">Ordres de grandeur avec les taux réglables dans Réglages (réel ${S.reelRate} % du bénéfice, dirigeant ${S.dirigeantRate} %, IS ${S.isRate} %). Hors impôt sur le revenu, CFE et frais de comptable. À valider avec un expert-comptable avant tout changement.</p></div></div>`;
+}
+
+function vAnnee(){
+  const y=cur.y;const ms=Array.from({length:12},(_,i)=>({i,k:mkey(y,i+1),...foyerMonth(mkey(y,i+1))}));
+  const act=ms.filter(m=>m.incomes||m.depenses);
+  const W=600,H=200,pb=22;const max=Math.max(1,...ms.map(m=>Math.max(m.incomes,m.depenses)));
+  const ticks=niceTicks(max),top=ticks.at(-1),bw=W/12,sc=v=>Math.max(0,v/top)*(H-pb-8);
+  const grid=ticks.map(t=>{const yy=H-pb-sc(t);return `<line x1="0" x2="${W}" y1="${yy}" y2="${yy}" stroke="var(--line)"/><text x="${W-2}" y="${Math.max(11,yy-3)}" text-anchor="end">${t>=1000?(t/1000).toLocaleString("fr-FR")+" k":t}</text>`}).join("");
+  const bars=ms.map((m,i)=>{const x=i*bw+bw*.12,w=bw*.36;return `<rect x="${x}" y="${H-pb-sc(m.incomes)}" width="${w}" height="${sc(m.incomes)}" rx="2" fill="var(--foyer)"/><rect x="${x+w+1}" y="${H-pb-sc(m.depenses)}" width="${w}" height="${sc(m.depenses)}" rx="2" fill="var(--neg)" opacity=".75"/><text x="${i*bw+bw/2}" y="${H-6}" text-anchor="middle">${MOIS[i].slice(0,3)}</text>`}).join("");
+  const T=k=>sum(ms,m=>m[k]);
+  const cats={};TX.filter(t=>t.scope==="foyer"&&t.type==="out"&&t.month.startsWith(String(y))).forEach(t=>cats[t.cat]=(cats[t.cat]||0)+t.amount);
+  const topC=Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  return `
+  <div class="card hero"><div class="lab">Épargne nette ${y} à ce jour</div><div class="big ${T("impact")>=0?"pos":"neg"}">${sgn(T("impact"))}</div>
+    <div class="flow"><div><div class="k">Revenus</div><div class="v">${eur0(T("incomes"))}</div></div><div><div class="k">Dépenses</div><div class="v">${eur0(T("depenses"))}</div></div><div><div class="k">Taux d'épargne</div><div class="v">${pct(T("incomes")?T("impact")/T("incomes")*100:0)}</div></div></div></div>
+  <div><h2>Mois par mois</h2><div class="card"><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Revenus et dépenses par mois">${grid}${bars}</svg>
+  <div class="legend"><span><i style="background:var(--foyer)"></i>Revenus (pro net inclus)</span><span><i style="background:var(--neg);opacity:.75"></i>Dépenses</span></div></div></div>
+  <div class="card tbl"><table><thead><tr><th>Mois</th><th>Revenus</th><th>Dieu</th><th>Fondamental</th><th>Variable</th><th>Épargne</th></tr></thead><tbody>
+  ${act.map(m=>`<tr class="${m.k===curKey()?"cur":""}"><td>${MOIS[m.i]}</td><td>${eur0(m.incomes)}</td><td>${eur0(m.dieu)}</td><td>${eur0(m.fixe)}</td><td>${eur0(m.variable)}</td><td class="${m.impact>=0?"pos":"neg"}">${eur0(m.impact)}</td></tr>`).join("")}
+  <tr><td><b>Total</b></td><td><b>${eur0(T("incomes"))}</b></td><td><b>${eur0(T("dieu"))}</b></td><td><b>${eur0(T("fixe"))}</b></td><td><b>${eur0(T("variable"))}</b></td><td class="${T("impact")>=0?"pos":"neg"}"><b>${eur0(T("impact"))}</b></td></tr></tbody></table></div>
+  ${topC.length?`<div><h2>Où part l'argent en ${y}</h2><div class="card env">${topC.map(([c,v])=>`<div class="env-row"><div class="env-head"><b>${esc(c)}</b><span class="num">${eur0(v)} · ${eur0(v/Math.max(1,act.length))}/mois</span></div><div class="bar"><i style="width:${Math.max(0,v/topC[0][1]*100)}%;background:var(--foyer)"></i></div></div>`).join("")}</div></div>`:""}`;
+}
+
+function vComptes(){
+  const accs=[...ACC].sort((a,b)=>(a.ord||0)-(b.ord||0));
+  const tot=sum(accs,a=>a.balance);const owed=(S.regime==="micro"||S.regime==="reel")?urssafOwed().owed:0;
+  const ms=Array.from({length:12},(_,i)=>foyerMonth(mkey(cur.y,i+1))).filter(m=>m.fixe>0);
+  const fixAvg=ms.length?sum(ms,m=>m.fixe+m.dieu)/ms.length:0;
+  const epar=sum(accs.filter(a=>a.kind==="epargne"),a=>a.balance);
+  const months=fixAvg?epar/fixAvg:0;
+  const kinds=[["courant","Courant"],["epargne","Épargne"],["especes","Espèces"],["invest","Investissement"],["dette","Dette"]];
+  return `
+  <div class="card hero"><div class="lab">Argent disponible après URSSAF dû</div><div class="big ${tot-owed>=0?"":"neg"}">${eur(tot-owed)}</div>
+  <div class="flow"><div><div class="k">Total des comptes</div><div class="v">${eur(tot)}</div></div><div><div class="k">URSSAF à mettre de côté</div><div class="v neg">${eur(owed)}</div></div><div><div class="k">Coussin de sécurité</div><div class="v">${months.toLocaleString("fr-FR",{maximumFractionDigits:1})} mois</div></div></div>
+  <p class="small muted" style="margin:6px 0 0">L'épargne couvre ${months.toLocaleString("fr-FR",{maximumFractionDigits:1})} mois de dépenses fondamentales (${eur0(fixAvg)}/mois en moyenne). Repère courant : 3 à 6 mois.</p></div>
+  <div><h2>Comptes et soldes</h2><div class="card" style="display:grid;gap:14px">
+  ${accs.map(a=>`<div class="fgrid" style="align-items:end"><label class="f"><span>Compte</span><input type="text" data-acc="${a.id}" data-f="name" value="${esc(a.name)}"></label><label class="f"><span>Type</span><select data-acc="${a.id}" data-f="kind">${kinds.map(([v,l])=>`<option value="${v}" ${a.kind===v?"selected":""}>${l}</option>`).join("")}</select></label><label class="f"><span>Solde (€)</span><input type="number" step="0.01" inputmode="decimal" data-acc="${a.id}" data-f="balance" value="${a.balance}"></label></div>`).join("")||'<p class="muted">Aucun compte. Ajoute ton compte courant et tes livrets.</p>'}
+  <div class="toolbar"><button class="btn" id="addAcc">Ajouter un compte</button></div>
+  <p class="note" style="margin:0">Chaque modification s'enregistre aussitôt.</p></div></div>`;
+}
+
+function vReglages(){
+  const opt=(o,v)=>Object.entries(o).map(([k,l])=>`<option value="${k}" ${v===k?"selected":""}>${typeof l==="string"?l:l.label}</option>`).join("");
+  const r=microTotalRate();const dis=isOwner()?"":"disabled";
+  const totalSplit=Object.values(S.split).reduce((a,b)=>a+ +b,0);
+  return `
+  ${isOwner()?"":`<div class="alert"><span class="dot"></span><div>Ces réglages sont gérés par ${esc(S.owner||"le titulaire de l'activité")}. Tu peux les consulter.</div></div>`}
+  <div><h2>Statut de l'activité</h2><div class="card" style="display:grid;gap:12px">
+    <label class="f"><span>Statut juridique</span><select id="s_regime" ${dis}>${opt(REGIMES,S.regime)}</select></label>
+    ${S.regime==="micro"?`
+    <label class="f"><span>Nature de l'activité</span><select id="s_activity" ${dis}>${opt(MICRO,S.activity)}</select></label>
+    <div class="fgrid">
+      <label class="f"><span>ACRE</span><select id="s_acre" ${dis}><option value="none" ${S.acre==="none"?"selected":""}>Non</option><option value="half" ${S.acre==="half"?"selected":""}>Oui, taux réduit de 50 %</option><option value="threeq" ${S.acre==="threeq"?"selected":""}>Oui, taux réduit de 25 % (depuis juillet 2026)</option></select></label>
+      <label class="f"><span>Déclaration</span><select id="s_declaration" ${dis}><option value="quarter" ${S.declaration==="quarter"?"selected":""}>Trimestrielle</option><option value="month" ${S.declaration==="month"?"selected":""}>Mensuelle</option></select></label>
+      <label class="f"><span>Contribution formation (%)</span><input type="number" id="s_cfp" step="0.1" value="${S.cfp}" ${dis}></label>
+    </div>
+    <label class="check"><input type="checkbox" id="s_vl" ${S.vl?"checked":""} ${dis}> Versement libératoire de l'impôt sur le revenu (+${pct(MICRO[S.activity]?.vl||0)})</label>
+    <div class="alert"><span class="dot"></span><div>Taux total appliqué au chiffre d'affaires : <b class="num">${pct(r.total)}</b></div></div>`:""}
+    ${S.regime==="reel"?`<label class="f"><span>Cotisations sociales en % du bénéfice (estimation)</span><input type="number" id="s_reelRate" value="${S.reelRate}" ${dis}></label><label class="f"><span>Déclaration URSSAF</span><select id="s_declaration" ${dis}><option value="quarter" ${S.declaration==="quarter"?"selected":""}>Trimestrielle</option><option value="month" ${S.declaration==="month"?"selected":""}>Mensuelle</option></select></label>`:""}
+    ${(S.regime==="societe_is"||S.regime==="sasu")?`<div class="fgrid"><label class="f"><span>Charges sur la rémunération (%)</span><input type="number" id="s_dirigeantRate" value="${S.dirigeantRate}" ${dis}></label><label class="f"><span>Taux d'IS (%)</span><input type="number" id="s_isRate" value="${S.isRate}" ${dis}></label></div><p class="note" style="margin:0">Repères : environ 45 % pour un gérant TNS, 75 à 80 % du net pour un président de SASU. IS à 15 % jusqu'à 42 500 € de bénéfice.</p>`:""}
+    <label class="f"><span>Seuil de franchise de TVA (€)</span><input type="number" id="s_tvaSeuil" value="${S.tvaSeuil}" ${dis}></label>
+    <p class="note" style="margin:0">Taux micro 2026 issus de service-public.gouv.fr. Vérifie le seuil de TVA en vigueur sur impots.gouv.fr.</p>
+  </div></div>
+  <div><h2>Répartition des revenus</h2><div class="card" style="display:grid;gap:12px">
+    <div class="fgrid">${[["dieu","Partie pour Dieu"],["epargne","Épargne"],["fixe","Fondamental"],["variable","Variable"]].map(([k,l])=>`<label class="f"><span>${l} (%)</span><input type="number" data-split="${k}" value="${S.split[k]}" ${dis}></label>`).join("")}</div>
+    <p class="small ${totalSplit===100?"muted":"neg"}" style="margin:0">Total : ${totalSplit} %</p>
+  </div></div>
+  <div><h2>Membres du foyer</h2><div class="card" style="display:grid;gap:12px">
+    <div class="rows">${MEMBERS.map(m=>`<div class="row"><div class="t">${esc(m.name)} <span class="chip ${m.role==="owner"?"pro":"foyer"}">${m.role==="owner"?"Titulaire":"Membre"}</span></div><div class="s">${esc(m.email)} · ${m.user_id?"compte actif":"invitation en attente"}</div><div class="amt">${isOwner()&&m.role!=="owner"?`<button class="btn sm danger" data-delmember="${esc(m.email)}">Retirer</button>`:""}</div></div>`).join("")}</div>
+    ${isOwner()?`<div class="fgrid" style="align-items:end"><label class="f"><span>Prénom</span><input type="text" id="m_name" placeholder="Diana"></label><label class="f"><span>Email</span><input type="email" id="m_email" placeholder="diana@exemple.fr" autocomplete="off"></label><button class="btn" id="addMember">Ajouter</button></div>
+    <p class="note" style="margin:0">La personne crée ensuite son compte sur cette app avec le même email, puis confirme l'email reçu.</p>`:""}
+  </div></div>
+  <div><h2>Installer sur le téléphone</h2><div class="card small">Sur iPhone, ouvre cette page dans Safari, touche le bouton Partager puis « Sur l'écran d'accueil ». Sur Android, menu de Chrome puis « Installer l'application ».</div></div>
+  <div><h2>Données</h2><div class="card toolbar"><button class="btn" id="exportCsv">Télécharger en CSV</button><button class="btn" id="copyCsv">Copier pour Google Sheets</button><button class="btn danger" id="logout">Se déconnecter</button></div></div>`;
+}
+
+/* ===================== Saisie ===================== */
+let sheet=null;
+function canEdit(t){return t.source!=="coach"&&(t.scope==="foyer"||isOwner());}
+function openSheet(t){
+  const isNew=!t;
+  sheet=t?{...t}:{type:"out",scope:"foyer",group:"variable",cat:"Courses",label:"",amount:"",date:new Date().toISOString().slice(0,10),status:"paid",method:"",client:""};
+  if(isNew&&!sheet.date.startsWith(curKey()))sheet.date=curKey()+"-01";
+  drawSheet(isNew);
+}
+function drawSheet(isNew,confirmDel){
+  const s=sheet;const ro=!isNew&&!canEdit(s);
+  const groups=Object.keys(CATS[s.scope][s.type]);if(!groups.includes(s.group))s.group=groups[0];
+  const cats=CATS[s.scope][s.type][s.group];const catOpts=cats.includes(s.cat)?cats:[s.cat,...cats];
+  const d=ro?"disabled":"";
+  $("#sheetHost").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="txForm" role="dialog" aria-label="${isNew?"Nouvelle ligne":"Ligne"}">
+    <div class="env-head"><h3>${isNew?"Nouvelle ligne":ro?"Détail de la ligne":"Modifier la ligne"}</h3><button type="button" class="btn" id="closeSheet">Fermer</button></div>
+    ${ro?`<div class="alert"><span class="dot"></span><div>${s.source==="coach"?"Paiement importé depuis TB my Coach : modifie-le dans ton app de coaching.":"Les lignes de l'activité pro sont modifiables par "+esc(S.owner||"le titulaire")+" uniquement."}</div></div>`:""}
+    <div class="typesw"><button type="button" class="foy" data-sw="scope" data-val="foyer" aria-pressed="${s.scope==="foyer"}" ${d}>Foyer</button><button type="button" class="pr" data-sw="scope" data-val="pro" aria-pressed="${s.scope==="pro"}" ${d||(!isOwner()?"disabled":"")}>Activité pro</button></div>
+    <div class="typesw"><button type="button" class="in" data-sw="type" data-val="in" aria-pressed="${s.type==="in"}" ${d}>Entrée</button><button type="button" class="out" data-sw="type" data-val="out" aria-pressed="${s.type==="out"}" ${d}>Sortie</button></div>
+    <label class="f"><span>Montant (€)</span><input class="amtin" id="f_amount" type="number" step="0.01" inputmode="decimal" placeholder="0,00" value="${s.amount}" required ${d}></label>
+    <div class="fgrid">
+      ${groups.length>1?`<label class="f"><span>Enveloppe</span><select id="f_group" ${d}>${groups.map(g=>`<option value="${g}" ${s.group===g?"selected":""}>${GROUP_LABEL[g]}</option>`).join("")}</select></label>`:""}
+      <label class="f"><span>${s.scope==="pro"&&s.type==="in"?"Prestation":"Catégorie"}</span><select id="f_cat" ${d}>${catOpts.map(c=>`<option ${s.cat===c?"selected":""}>${esc(c)}</option>`).join("")}</select></label>
+      <label class="f"><span>Date</span><input type="date" id="f_date" value="${s.date}" required ${d}></label>
+    </div>
+    <label class="f"><span>Libellé</span><input type="text" id="f_label" value="${esc(s.label)}" placeholder="${s.scope==="pro"?"ex. Séance du mardi":"ex. Carrefour, loyer d'octobre"}" ${d}></label>
+    ${s.scope==="pro"&&s.type==="in"?`<label class="f"><span>Client(s)</span><input type="text" id="f_client" list="clientList" value="${esc(s.client)}" placeholder="Sépare plusieurs clients par ;" ${d}></label><datalist id="clientList">${knownClients().map(c=>`<option value="${esc(c)}">`).join("")}</datalist>`:""}
+    <div class="fgrid">
+      <label class="f"><span>Moyen de paiement</span><select id="f_method" ${d}>${["","Virement","Carte","Espèces","Chèque","Prélèvement","Stripe"].concat(["","Virement","Carte","Espèces","Chèque","Prélèvement","Stripe"].includes(s.method)?[]:[s.method]).map(m=>`<option value="${esc(m)}" ${s.method===m?"selected":""}>${esc(m)||"Non précisé"}</option>`).join("")}</select></label>
+      ${s.type==="in"?`<label class="f"><span>Statut</span><select id="f_status" ${d}><option value="paid" ${s.status!=="pending"?"selected":""}>Encaissé</option><option value="pending" ${s.status==="pending"?"selected":""}>En attente</option></select></label>`:""}
+    </div>
+    ${!isNew&&memberName(s.created_by)?`<p class="note" style="margin:0">Saisi par ${esc(memberName(s.created_by))}</p>`:""}
+    ${confirmDel?`<div class="confirm">Supprimer définitivement cette ligne ? <button type="button" class="btn danger" id="delYes">Supprimer</button><button type="button" class="btn" id="delNo">Garder</button></div>`:""}
+    ${ro?"":`<div class="sheet-actions">${!isNew&&!confirmDel?`<button type="button" class="btn danger" id="delTx">Supprimer</button>`:"<span></span>"}<button type="submit" class="btn primary" id="saveTx">${isNew?"Enregistrer":"Mettre à jour"}</button></div>`}
+  </form></div>`;
+  const f=$("#txForm");
+  const pull=()=>{if(ro)return;s.amount=$("#f_amount").value;s.date=$("#f_date").value;s.label=$("#f_label").value;s.cat=$("#f_cat").value;if($("#f_group"))s.group=$("#f_group").value;if($("#f_client"))s.client=$("#f_client").value;s.method=$("#f_method").value;if($("#f_status"))s.status=$("#f_status").value;};
+  f.querySelectorAll("[data-sw]").forEach(b=>b.onclick=()=>{pull();s[b.dataset.sw]=b.dataset.val;drawSheet(isNew)});
+  if($("#f_group"))$("#f_group").onchange=()=>{pull();drawSheet(isNew)};
+  $("#closeSheet").onclick=closeSheet;
+  $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet()};
+  if($("#delTx"))$("#delTx").onclick=()=>{pull();drawSheet(false,true)};
+  if($("#delNo"))$("#delNo").onclick=()=>drawSheet(false);
+  if($("#delYes"))$("#delYes").onclick=async()=>{const {error}=await sb.from("compta_tx").delete().eq("id",s.id);if(error){toast(errMsg(error));return;}toast("Ligne supprimée");closeSheet();refresh();};
+  f.onsubmit=async e=>{e.preventDefault();if(ro)return;pull();
+    const amt=parseFloat(String(s.amount).replace(",","."));if(!isFinite(amt)||amt===0){toast("Indique un montant");return;}
+    if(!s.date){toast("Indique une date");return;}
+    const body={date:s.date,type:s.type,scope:s.scope,grp:s.group,cat:s.cat,label:(s.label||"").trim()||s.cat,amount:Math.round(amt*100)/100,status:s.type==="in"?(s.status||"paid"):"paid",method:s.method||"",client:s.scope==="pro"&&s.type==="in"?(s.client||"").trim():""};
+    $("#saveTx").disabled=true;
+    const {error}=isNew?await sb.from("compta_tx").insert(body):await sb.from("compta_tx").update(body).eq("id",s.id);
+    if(error){toast(errMsg(error));$("#saveTx").disabled=false;return;}
+    toast(isNew?"Ligne enregistrée":"Ligne mise à jour");closeSheet();
+    const [y,m]=body.date.split("-").map(Number);cur={y,m};refresh();
+  };
+  if(isNew)setTimeout(()=>{const a=$("#f_amount");if(a)a.focus()},60);
+}
+function closeSheet(){$("#sheetHost").innerHTML="";sheet=null;}
+function knownClients(){const s=new Set();TX.forEach(t=>t.client&&t.client.split(/[;+,]/).forEach(n=>n.trim()&&s.add(n.trim())));return [...s].sort();}
+function errMsg(e){const m=(e&&(e.message||e.code))||"";if(/row-level security|permission|42501/i.test(m))return "Ton compte n'a pas le droit de faire cette modification.";if(/fetch|network/i.test(m))return "Pas de connexion internet, réessaie.";return "Enregistrement impossible pour l'instant, réessaie.";}
+let toastT;function toast(m){$("#toastHost").innerHTML=`<div class="toast" role="status">${esc(m)}</div>`;clearTimeout(toastT);toastT=setTimeout(()=>$("#toastHost").innerHTML="",2600);}
+
+/* ===================== Actions ===================== */
+let settingsWrite=Promise.resolve();
+function saveSettings(patch){if(!isOwner())return;Object.assign(S,patch);render();
+  settingsWrite=settingsWrite.then(async()=>{const {error}=await sb.from("compta_settings").upsert({id:1,data:S});if(error)toast(errMsg(error));});}
+const debT={};function debounce(key,fn,ms=600){clearTimeout(debT[key]);debT[key]=setTimeout(fn,ms);}
+function csv(sep=";"){const cols=["date","scope","type","group","cat","label","client","amount","status","method","saisi_par"];
+  const q=v=>{v=String(v??"");return new RegExp(`["${sep}\\n]`).test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  return [cols.join(sep),...[...TX].sort((a,b)=>a.date.localeCompare(b.date)).map(t=>cols.map(c=>c==="amount"?String(t.amount).replace(".",","):c==="group"?q(GROUP_LABEL[t.group]||t.group):c==="saisi_par"?q(t.source==="coach"?"TB my Coach":memberName(t.created_by)):q(t[c])).join(sep))].join("\n");}
+function bindView(){
+  document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{const t=TX.find(x=>x.id===b.dataset.edit);if(t)openSheet(t)});
+  document.querySelectorAll("[data-pay]").forEach(b=>b.onclick=()=>{const id=b.dataset.pay;const p=new Set(S.paidPeriods||[]);p.has(id)?p.delete(id):p.add(id);saveSettings({paidPeriods:[...p]});toast(p.has(id)?"Période marquée payée":"Période remise à payer")});
+  document.querySelectorAll("[data-jf]").forEach(b=>b.onclick=()=>{jFilter[b.dataset.jf]=b.dataset.val;try{localStorage.setItem("compta.jf",JSON.stringify(jFilter))}catch(e){}render()});
+  const jq=$("#jq");if(jq)jq.oninput=()=>debounce("jq",()=>{jFilter.q=jq.value;render();},250);
+  const ng=$("#netGoal");if(ng)ng.oninput=()=>debounce("ng",()=>saveSettings({netGoal:+ng.value||0}),700);
+  const cr=$("#copyRecur");if(cr)cr.onclick=copyRecurring;
+  document.querySelectorAll("#exportCsv").forEach(b=>b.onclick=()=>{const blob=new Blob(["﻿"+csv()],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`comptabilite-${cur.y}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);});
+  document.querySelectorAll("#copyCsv").forEach(b=>b.onclick=()=>{navigator.clipboard.writeText(csv("\t")).then(()=>toast(`${TX.length} lignes copiées, colle-les dans ton Sheet`)).catch(()=>toast("Copie refusée par ce navigateur"));});
+  document.querySelectorAll("[data-acc]").forEach(inp=>{const h=()=>debounce("acc"+inp.dataset.acc+inp.dataset.f,async()=>{const v=inp.dataset.f==="balance"?(parseFloat(inp.value)||0):inp.value;const {error}=await sb.from("compta_accounts").update({[inp.dataset.f]:v}).eq("id",inp.dataset.acc);if(error)toast(errMsg(error));else{const a=ACC.find(x=>x.id===inp.dataset.acc);if(a)a[inp.dataset.f]=v;toast("Compte mis à jour");if(inp.dataset.f!=="name")render();}},700);inp.oninput=h;inp.onchange=h;});
+  const aa=$("#addAcc");if(aa)aa.onclick=async()=>{const {error}=await sb.from("compta_accounts").insert({name:"Nouveau compte",kind:"courant",balance:0,ord:ACC.length+1});if(error)toast(errMsg(error));else refresh();};
+  const bindS=(id,key,num)=>{const el=$("#"+id);if(!el)return;const ev=el.type==="checkbox"||el.tagName==="SELECT"?"onchange":"oninput";el[ev]=()=>{const v=el.type==="checkbox"?el.checked:num?(parseFloat(el.value)||0):el.value;if(ev==="oninput")debounce(id,()=>saveSettings({[key]:v}),700);else saveSettings({[key]:v});}};
+  [["s_regime","regime"],["s_activity","activity"],["s_acre","acre"],["s_declaration","declaration"],["s_vl","vl"]].forEach(([i,k])=>bindS(i,k));
+  [["s_cfp","cfp"],["s_reelRate","reelRate"],["s_dirigeantRate","dirigeantRate"],["s_isRate","isRate"],["s_tvaSeuil","tvaSeuil"]].forEach(([i,k])=>bindS(i,k,true));
+  document.querySelectorAll("[data-split]").forEach(el=>el.oninput=()=>debounce("sp"+el.dataset.split,()=>saveSettings({split:{...S.split,[el.dataset.split]:+el.value||0}}),700));
+  const am=$("#addMember");if(am)am.onclick=async()=>{const name=$("#m_name").value.trim(),email=$("#m_email").value.trim().toLowerCase();if(!name||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){toast("Indique un prénom et un email valide");return;}const {error}=await sb.from("compta_members").insert({email,name,role:"member"});if(error){toast(/duplicate/i.test(error.message)?"Cet email est déjà membre":errMsg(error));return;}toast(`${name} ajouté·e au foyer`);refresh();};
+  document.querySelectorAll("[data-delmember]").forEach(b=>b.onclick=async()=>{if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent="Confirmer";return;}const {error}=await sb.from("compta_members").delete().eq("email",b.dataset.delmember);if(error)toast(errMsg(error));else{toast("Membre retiré");refresh();}});
+  const lo=$("#logout");if(lo)lo.onclick=async()=>{await sb.auth.signOut();location.reload();};
+}
+async function copyRecurring(){
+  const k=curKey();
+  const src=TX.filter(t=>t.month===prevKey()&&!t.source&&(t.group==="fixe"||(t.group==="charge"&&isOwner())));
+  const have=new Set(TX.filter(t=>t.month===k).map(t=>t.scope+t.label+t.cat));
+  const todo=src.filter(t=>!have.has(t.scope+t.label+t.cat));
+  if(!todo.length){toast("Ces charges sont déjà dans le mois");return;}
+  const b=$("#copyRecur");if(b)b.disabled=true;
+  const day=t=>{const d=+t.date.slice(8);const last=new Date(cur.y,cur.m,0).getDate();return String(Math.min(d,last)).padStart(2,"0");};
+  const {error}=await sb.from("compta_tx").insert(todo.map(t=>({date:`${k}-${day(t)}`,type:t.type,scope:t.scope,grp:t.group,cat:t.cat,label:t.label,amount:t.amount,status:"paid",method:t.method||"",client:""})));
+  if(error)toast(errMsg(error));else toast(`${todo.length} lignes recopiées`);
+  refresh();
+}
+
+/* ===================== Écran de connexion ===================== */
+function authScreen(mode="login",msg=""){
+  $("#app").hidden=true;
+  const T={login:["Connexion","Se connecter"],signup:["Créer mon compte","Créer le compte"],reset:["Mot de passe oublié","Recevoir le lien"],newpass:["Nouveau mot de passe","Enregistrer"]}[mode];
+  $("#authHost").innerHTML=`<div class="auth"><form id="authForm" novalidate>
+    <img class="mark" src="icon.svg" alt="">
+    <h1>Comptabilité</h1>
+    <p class="muted">Le budget du foyer et l'activité pro, au même endroit.</p>
+    <h3 style="margin-top:6px">${T[0]}</h3>
+    ${mode==="signup"?`<p class="small muted">Utilise l'email ajouté par le titulaire du foyer, puis confirme le lien reçu par email.</p>`:""}
+    ${mode!=="newpass"?`<label class="f"><span>Email</span><input type="email" id="a_email" autocomplete="email" required></label>`:""}
+    ${mode!=="reset"?`<label class="f"><span>Mot de passe</span><input type="password" id="a_pass" autocomplete="${mode==="login"?"current-password":"new-password"}" minlength="8" required></label>`:""}
+    <div class="${/^ok:/.test(msg)?"small pos":"err"}" id="a_msg" role="alert">${esc(msg.replace(/^ok:/,""))}</div>
+    <button class="btn primary" type="submit" id="a_go">${T[1]}</button>
+    <div class="toolbar small" style="justify-content:space-between">
+      ${mode==="login"?`<button type="button" class="linkbtn" data-mode="signup">Créer mon compte</button><button type="button" class="linkbtn" data-mode="reset">Mot de passe oublié</button>`:`<button type="button" class="linkbtn" data-mode="login">J'ai déjà un compte</button>`}
+    </div>
+  </form></div>`;
+  document.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>authScreen(b.dataset.mode));
+  $("#authForm").onsubmit=async e=>{e.preventDefault();const em=$("#a_email")?.value.trim(),pw=$("#a_pass")?.value;const go=$("#a_go");go.disabled=true;const say=t=>{$("#a_msg").textContent=t.replace(/^ok:/,"");$("#a_msg").className=/^ok:/.test(t)?"small pos":"err";go.disabled=false;};
+    try{
+      if(mode==="login"){const {error}=await sb.auth.signInWithPassword({email:em,password:pw});if(error)return say(/confirm/i.test(error.message)?"Confirme d'abord ton email avec le lien reçu.":"Email ou mot de passe incorrect.");}
+      else if(mode==="signup"){if((pw||"").length<8)return say("Choisis un mot de passe d'au moins 8 caractères.");const {data,error}=await sb.auth.signUp({email:em,password:pw,options:{emailRedirectTo:location.origin+location.pathname}});if(error)return say(/registered|exists/i.test(error.message)?"Ce compte existe déjà : connecte-toi.":"Création impossible : "+error.message);if(!data.session)return say("ok:Compte créé. Ouvre l'email de confirmation, puis reviens te connecter ici.");}
+      else if(mode==="reset"){const {error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});if(error)return say("Envoi impossible, réessaie dans quelques minutes.");return say("ok:Si ce compte existe, un lien de réinitialisation vient d'être envoyé.");}
+      else if(mode==="newpass"){if((pw||"").length<8)return say("Au moins 8 caractères.");const {error}=await sb.auth.updateUser({password:pw});if(error)return say("Modification impossible : "+error.message);history.replaceState(null,"",location.pathname);start();}
+    }catch(err){say("Pas de connexion internet, réessaie.");}
+  };
+}
+function noAccessScreen(email){
+  $("#app").hidden=true;
+  $("#authHost").innerHTML=`<div class="auth"><div style="max-width:380px;display:grid;gap:14px"><img class="mark" src="icon.svg" alt=""><h1>Accès réservé</h1><p class="muted">Le compte ${esc(email)} ne fait pas partie de ce foyer. Demande au titulaire de t'ajouter dans Réglages, avec cet email exact.</p><button class="btn" id="noOut">Changer de compte</button></div></div>`;
+  $("#noOut").onclick=async()=>{await sb.auth.signOut();authScreen();};
+}
+
+/* ===================== Démarrage ===================== */
+$("#tabs").onclick=e=>{const b=e.target.closest("button[data-v]");if(b)setView(b.dataset.v)};
+$("#prevM").onclick=()=>{cur.m--;if(cur.m<1){cur.m=12;cur.y--}render()};
+$("#nextM").onclick=()=>{cur.m++;if(cur.m>12){cur.m=1;cur.y++}render()};
+$("#fab").onclick=()=>openSheet();
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&sheet)closeSheet()});
+
+let recovering=false;
+sb.auth.onAuthStateChange((ev)=>{if(ev==="PASSWORD_RECOVERY"){recovering=true;authScreen("newpass");}});
+let starting=false;
+async function start(){
+  if(starting)return;starting=true;
+  const {data:{session}}=await sb.auth.getSession();
+  starting=!!session;
+  if(recovering)return;
+  if(!session){authScreen();return;}
+  ME=session.user;
+  const {data:role,error}=await sb.rpc("compta_claim");
+  if(error){authScreen("login","Connexion impossible, réessaie.");return;}
+  if(!role){noAccessScreen(ME.email);return;}
+  ROLE=role;
+  $("#authHost").innerHTML="";$("#app").hidden=false;
+  try{await loadAll();}catch(e){$("#main").innerHTML=`<section class="view"><div class="empty"><h3>Chargement impossible</h3><p>Vérifie ta connexion puis rouvre l'app.</p></div></section>`;return;}
+  $("#who").textContent=memberName(ME.id)||ME.email;
+  render();
+}
+sb.auth.onAuthStateChange((ev)=>{if(ev==="SIGNED_IN"&&!ROLE&&!recovering)start();});
+start();
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+</script>
+</body>
+</html>
