@@ -1,6 +1,6 @@
 // Garde l'interface en cache pour un démarrage rapide ; les données passent toujours par le réseau.
-const CACHE = "compta-v1";
-const SHELL = ["./", "index.html", "supabase.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "apple-touch-icon.png"];
+const CACHE = "compta-v2";
+const SHELL = ["./", "index.html", "supabase.js", "app2.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "apple-touch-icon.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener("fetch", e => {
