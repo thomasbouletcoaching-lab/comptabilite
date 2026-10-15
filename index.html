@@ -102,7 +102,18 @@ h3{font:600 17px var(--display);margin:0}
 .row .amt{grid-row:1/span 2;grid-column:2;text-align:right;font-size:15px}
 button.row{background:none;border:0;border-bottom:1px solid var(--line);text-align:left;width:100%;padding-inline:0}
 button.row:hover{background:var(--sunk)}
-.dayhead{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;padding:14px 0 2px}
+.jmonth{display:grid;gap:8px}
+.mband{position:sticky;top:var(--hdr,150px);z-index:5;display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;background:var(--ink);color:var(--bg);border-radius:var(--r);padding:12px 16px;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.mband .mname{font:700 22px/1.1 var(--display);text-transform:capitalize;letter-spacing:-.01em}
+.mband .myear{font-weight:500;opacity:.7}
+.mband .mtot{font:500 13px var(--mono);font-variant-numeric:tabular-nums;display:flex;gap:10px;flex-wrap:wrap}
+.mband .pos{color:var(--foyer-soft)}.mband .neg{color:#F7B4AB}.mband b{font-weight:600}
+.jcard{padding-block:0 6px}
+.dayhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px;color:var(--ink);background:var(--sunk);margin:12px -16px 0;padding:8px 16px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.jcard .dayhead:first-child{margin-top:0;border-top:0;border-radius:var(--r) var(--r) 0 0}
+.dayhead b{text-transform:capitalize;font-weight:600}
+.dayhead .num{font-size:13px;color:var(--muted)}.dayhead .num.pos{color:var(--pos)}
+.scopebox{display:grid;gap:8px;background:var(--warn-soft);border-radius:var(--r);padding:12px}
 .tbl{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{font-weight:500;color:var(--muted);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);font-size:12px;white-space:nowrap}
@@ -379,6 +390,7 @@ function render(){
   let sel=null;try{sel=key&&ae.selectionStart!=null?[ae.selectionStart,ae.selectionEnd]:null}catch(e){}
   $("#main").innerHTML=`<section class="view">${fn()}</section>`;
   bindView();
+  const hh=document.querySelector("header.top");if(hh)document.documentElement.style.setProperty("--hdr",(hh.offsetHeight+6)+"px");
   if(key){const n=document.querySelector("#main "+key);if(n){n.focus({preventScroll:true});try{if(sel)n.setSelectionRange(sel[0],sel[1])}catch(e){}}}
 }
 
@@ -457,7 +469,7 @@ function vJournal(){
   if(jFilter.q){const q=jFilter.q.toLowerCase();rows=rows.filter(t=>(t.label+" "+t.cat+" "+(t.client||"")+" "+(t.store||"")).toLowerCase().includes(q));}
   rows.sort((a,b)=>b.date.localeCompare(a.date)||(a.type===b.type?b.amount-a.amount:a.type==="in"?-1:1));
   const tin=sum(rows.filter(t=>t.type==="in"&&t.group!=="transfert")),tout=sum(rows.filter(t=>t.type==="out"&&t.group!=="transfert"));
-  const groups={};rows.forEach(t=>{const key=jFilter.span==="year"?t.month:t.date;(groups[key]=groups[key]||[]).push(t)});
+  const byMonth={};rows.forEach(t=>{(byMonth[t.month]=byMonth[t.month]||[]).push(t)});
   const head=key=>{if(jFilter.span==="year"){const m=+key.slice(5);return MOIS[m-1]+" "+key.slice(0,4);}const d=new Date(key+"T12:00");return d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});};
   const seg=(name,opts)=>`<div class="seg">${opts.map(([v,l])=>`<button data-jf="${name}" data-val="${v}" aria-pressed="${jFilter[name]===v}">${l}</button>`).join("")}</div>`;
   const recurN=TX.filter(t=>t.month===prevKey()&&!t.source&&!t.rec_id&&(t.group==="fixe"||(t.group==="charge"&&isOwner()))).length;
@@ -467,7 +479,12 @@ function vJournal(){
   <input type="search" id="jq" placeholder="Chercher un libellé, un magasin, un client" value="${esc(jFilter.q)}">
   <div class="flow" style="margin:0"><div><div class="k">Entrées</div><div class="v pos">${eur(tin)}</div></div><div><div class="k">Sorties</div><div class="v">${eur(tout)}</div></div><div><div class="k">Lignes</div><div class="v">${rows.length}</div></div></div>
   ${jFilter.span==="month"&&recurN?`<div class="alert"><span class="dot"></span><div>Recopie les ${recurN} charges fixes de ${MOIS[(cur.m+10)%12]} dans ${MOIS[cur.m-1]}. <button class="btn sm" id="copyRecur">Recopier</button></div></div>`:""}
-  <div class="card" style="padding-block:4px">${Object.keys(groups).length?Object.entries(groups).map(([d,l])=>`<div class="dayhead">${head(d)}</div>${l.map(txRow).join("")}`).join(""):`<div class="empty" style="padding:24px">Aucune ligne pour ces filtres.</div>`}</div>
+  ${Object.keys(byMonth).length?Object.entries(byMonth).map(([mk,ml])=>{
+    const mi=sum(ml.filter(t=>t.type==="in"&&t.group!=="transfert")),mo=sum(ml.filter(t=>t.type==="out"&&t.group!=="transfert"));
+    const days={};ml.forEach(t=>{(days[t.date]=days[t.date]||[]).push(t)});
+    return `<section class="jmonth"><div class="mband"><span class="mname">${MOIS[+mk.slice(5)-1]} <span class="myear">${mk.slice(0,4)}</span></span><span class="mtot"><span class="pos">+${eur0(mi)}</span> <span>−${eur0(mo)}</span> <b class="${mi-mo>=0?"pos":"neg"}">= ${sgn(Math.round(mi-mo))}</b></span></div>
+      <div class="card jcard">${Object.entries(days).map(([d,dl])=>{const dn=sum(dl.filter(t=>t.group!=="transfert"),t=>t.type==="in"?t.amount:-t.amount);const dt=new Date(d+"T12:00");
+        return `<div class="dayhead"><span><b>${dt.toLocaleDateString("fr-FR",{weekday:"long"})} ${dt.getDate()}</b> ${dt.toLocaleDateString("fr-FR",{month:"long"})}</span><span class="num ${dn>=0?"pos":""}">${dn>=0?"+":"−"}${eur(Math.abs(dn))}</span></div>${dl.map(txRow).join("")}`}).join("")}</div></section>`}).join(""):`<div class="card"><div class="empty" style="padding:24px">Aucune ligne pour ces filtres.</div></div>`}
   <div class="toolbar"><button class="btn" id="exportCsv">Télécharger en CSV</button><button class="btn" id="copyCsv">Copier pour Google Sheets</button></div>`;
 }
 

@@ -303,7 +303,7 @@ function openSheet(t, preset) {
   const isNew = !t; sheetFile = null; if (sheetPrevUrl) { URL.revokeObjectURL(sheetPrevUrl); sheetPrevUrl = null; }
   if (t && t.planned) { t = null; preset = { ...preset }; }
   if (t) {
-    sheet = { ...t, mode: isTransfer(t) ? "transfer" : t.type };
+    sheet = { ...t, mode: isTransfer(t) ? "transfer" : t.type, _orig: { ...t } };
     if (sheet.mode === "transfer") { const o = TX.find(x => x.transfer_id === t.transfer_id && x.id !== t.id); const out = t.type === "out" ? t : o, inn = t.type === "in" ? t : o; sheet.from = out ? out.account_id : ""; sheet.to = inn ? inn.account_id : ""; }
     sheet.freq = t.rec_id ? "month" : "once";
     sheetItems = ITEMS.filter(i => i.tx_id === t.id).map(i => ({ ...i }));
@@ -362,7 +362,7 @@ function drawSheet(isNew, confirmDel) {
         ${s.endMode === "count" ? `<label class="f"><span>Nombre de fois</span><input type="number" id="f_endcount" min="1" max="60" inputmode="numeric" value="${s.endCount || ""}" placeholder="ex. 3"></label>` : ""}
         ${s.endMode === "date" ? `<label class="f"><span>Dernier mois</span><input type="month" id="f_endmonth" min="${s.date.slice(0, 7)}" value="${s.endMonth || ""}"></label>` : ""}</div>
       <p class="note" style="margin:6px 0 0">Ajoutée automatiquement le ${dayLabel(s.recDay || +s.date.slice(8))} de chaque mois, à partir du ${new Date(s.date + "T12:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}${sheetEndKey(s) ? `, jusqu'en ${monthLabel(sheetEndKey(s))} inclus` : ", jusqu'à ce que tu l'arrêtes"}.</p>` : ""}</div>`
-    : rec ? `<div class="alert"><span class="dot"></span><div>Ligne récurrente : le ${dayLabel(rec.day)} de chaque mois${rec.end_month ? `, jusqu'en ${monthLabel(rec.end_month)}` : ""}${rec.active ? "" : " (arrêtée)"}. ${!ro && rec.active ? `<button type="button" class="btn sm" id="stopRec">Arrêter la récurrence</button>` : ""}<br><span class="note">Modifier ce montant ne change que ce mois. ${!ro && rec.active ? `<button type="button" class="linkbtn" id="applyRec">Appliquer aussi aux prochains mois</button>` : ""}</span></div></div>` : ""}
+    : rec ? `<div class="alert"><span class="dot"></span><div>Ligne récurrente : le ${dayLabel(rec.day)} de chaque mois${rec.end_month ? `, jusqu'en ${monthLabel(rec.end_month)}` : ""}${rec.active ? "" : " (arrêtée)"}. ${!ro && rec.active ? `<button type="button" class="btn sm" id="stopRec">Arrêter la récurrence</button>` : ""}<br><span class="note">À l'enregistrement, tu choisiras de modifier seulement cette ligne ou aussi les suivantes.</span></div></div>` : ""}
     ${showStore ? `<div class="receipt">
       <div class="env-head"><b>Ticket de caisse</b>${s.receipt_path ? `<button type="button" class="linkbtn small" id="seeReceipt">Voir le ticket</button>` : ""}</div>
       ${sheetPrevUrl ? `<img src="${sheetPrevUrl}" alt="Aperçu du ticket" class="rcpt-prev">` : ""}
@@ -391,7 +391,11 @@ function drawSheet(isNew, confirmDel) {
         <button type="button" class="btn danger" id="delAfter">Celle-ci et toutes les suivantes</button>
         <button type="button" class="btn" id="delNo">Ne rien supprimer</button></div>`
       : `<div class="confirm">Supprimer définitivement cette ligne${tr ? " (et sa contrepartie)" : ""} ? <button type="button" class="btn danger" id="delYes">Supprimer</button><button type="button" class="btn" id="delNo">Garder</button></div>`) : ""}
-    ${ro ? "" : `<div class="sheet-actions">${!isNew && !confirmDel ? `<button type="button" class="btn danger" id="delTx">Supprimer</button>` : "<span></span>"}<button type="submit" class="btn primary" id="saveTx">${isNew ? "Enregistrer" : "Mettre à jour"}</button></div>`}
+    ${!ro && s._askScope ? `<div class="scopebox"><b>Cette ligne revient chaque mois.</b><span class="small muted">Appliquer tes modifications :</span>
+      <button type="button" class="btn" id="scopeOne">Seulement à celle du ${new Date((s._orig || s).date + "T12:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}</button>
+      <button type="button" class="btn primary" id="scopeAll">À celle-ci et à toutes les suivantes</button>
+      <button type="button" class="linkbtn small" id="scopeCancel">Revenir à la saisie</button></div>`
+    : ro ? "" : `<div class="sheet-actions">${!isNew && !confirmDel ? `<button type="button" class="btn danger" id="delTx">Supprimer</button>` : "<span></span>"}<button type="submit" class="btn primary" id="saveTx">${isNew ? "Enregistrer" : "Mettre à jour"}</button></div>`}
   </form></div>`;
   bindSheet(isNew, ro);
 }
@@ -434,7 +438,10 @@ function bindSheet(isNew, ro) {
   f.querySelectorAll("[data-itdel]").forEach(b => b.onclick = () => { pullSheet(); sheetItems.splice(+b.dataset.itdel, 1); drawSheet(isNew); });
   f.querySelectorAll('[data-k="name"]').forEach(e => e.onchange = () => { const it = sheetItems[+e.dataset.it]; if (it && (!it.family || it.family === "Épicerie")) { it.name = e.value; it.family = guessFamily(e.value); const sel = document.querySelector(`[data-it="${e.dataset.it}"][data-k="family"]`); if (sel) sel.value = it.family; } });
   const st = $("#stopRec"); if (st) st.onclick = async () => { const r = REC.find(x => x.id === s.rec_id); closeSheet(); if (r) await stopRecFrom(r, addMonths(s.date, 1)); };
-  const ap = $("#applyRec"); if (ap) ap.onclick = async () => { pullSheet(); const a = num(s.amount); if (!a) { say("Indique un montant."); return; } const { error } = await sb.from("cpta_recurring").update({ amount: Math.abs(a), label: (s.label || "").trim() || s.cat, cat: s.cat, grp: s.group, account_id: s.account_id || null, store: s.store || "", method: s.method || "", client: s.scope === "pro" ? (s.client || "") : "", day: +s.date.slice(8) }).eq("id", s.rec_id); if (error) { say(errMsg(error)); return; } toast("Les prochains mois utiliseront ces valeurs"); };
+  const so = $("#scopeOne"), sa = $("#scopeAll"), sc = $("#scopeCancel");
+  if (so) so.onclick = () => { s._scope = "one"; saveSheet(false, say); };
+  if (sa) sa.onclick = () => { s._scope = "all"; saveSheet(false, say); };
+  if (sc) sc.onclick = () => { s._askScope = false; drawSheet(false); };
   const dt = $("#delTx"); if (dt) dt.onclick = () => { pullSheet(); drawSheet(false, true); };
   const dn = $("#delNo"); if (dn) dn.onclick = () => drawSheet(false);
   const dy = $("#delYes"); if (dy) dy.onclick = () => deleteTx(s);
@@ -482,8 +489,8 @@ async function saveSheet(isNew, say) {
   const s = sheet; const amt = num(s.amount);
   if (amt == null || amt === 0) { say("Indique un montant."); return; }
   if (!s.date) { say("Indique une date."); return; }
-  const btn = $("#saveTx"); btn.disabled = true; btn.textContent = "Enregistrement…";
-  const fail = m => { say(m); btn.disabled = false; btn.textContent = isNew ? "Enregistrer" : "Mettre à jour"; };
+  const btn = $("#saveTx") || $("#scopeAll") || {}; btn.disabled = true; const btnTxt = btn.textContent; btn.textContent = "Enregistrement…";
+  const fail = m => { say(m); btn.disabled = false; btn.textContent = btnTxt; };
   try {
     if (s.mode === "transfer") {
       if (!s.from || !s.to || s.from === s.to) return fail("Choisis deux comptes différents.");
@@ -499,8 +506,15 @@ async function saveSheet(isNew, say) {
       }
       toast(isNew ? "Virement enregistré" : "Virement mis à jour"); closeSheet(); goMonth(s.date); refresh(); return;
     }
-    const body = { date: s.date, type: s.type, scope: s.scope, grp: s.group, cat: s.cat, label: (s.label || "").trim() || s.cat, amount: Math.round(amt * 100) / 100, status: s.type === "in" ? (s.status || "paid") : "paid", method: s.method || "", client: s.scope === "pro" && s.type === "in" ? (s.client || "").trim() : "", store: s.type === "out" && s.scope === "foyer" ? (s.store || "").trim() : "", account_id: s.account_id || null };
+    const body0 = { date: s.date, type: s.type, scope: s.scope, grp: s.group, cat: s.cat, label: (s.label || "").trim() || s.cat, amount: Math.round(amt * 100) / 100, status: s.type === "in" ? (s.status || "paid") : "paid", method: s.method || "", client: s.scope === "pro" && s.type === "in" ? (s.client || "").trim() : "", store: s.type === "out" && s.scope === "foyer" ? (s.store || "").trim() : "", account_id: s.account_id || null };
+    const body = body0;
     let id = s.id;
+    const rec = !isNew && s.rec_id ? REC.find(r => r.id === s.rec_id) : null;
+    if (rec) {
+      const o = s._orig || {};
+      const changed = ["date", "type", "scope", "cat", "label", "status", "method", "client", "store"].some(k => String(o[k === "grp" ? "group" : k] ?? "") !== String(body[k] ?? "")) || o.group !== body.grp || Math.abs((+o.amount || 0) - body.amount) > 0.001 || String(o.account_id || "") !== String(body.account_id || "");
+      if (changed && !s._scope) { s._askScope = true; drawSheet(false); return; }
+    }
     if (isNew) {
       if (s.freq === "month" && ((s.endMode === "date" && !sheetEndKey(s)) || (s.endMode === "count" && !(+s.endCount >= 1)))) return fail(s.endMode === "date" ? "Choisis le dernier mois de la récurrence." : "Indique combien de fois.");
       if (s.freq === "month") {
@@ -513,6 +527,17 @@ async function saveSheet(isNew, say) {
       if (error) return fail(errMsg(error)); id = data.id;
     } else {
       const { error } = await sb.from("cpta_tx").update(body).eq("id", id); if (error) return fail(errMsg(error));
+      if (rec && s._scope === "all") {
+        const o = s._orig || s; const newDay = +body.date.slice(8); const dayChanged = newDay !== +o.date.slice(8);
+        const tpl = { amount: Math.abs(body.amount), label: body.label, cat: body.cat, grp: body.grp, account_id: body.account_id, store: body.store, method: body.method, client: body.client, type: body.type, scope: body.scope };
+        const { error: re } = await sb.from("cpta_recurring").update({ ...tpl, ...(dayChanged ? { day: newDay } : {}) }).eq("id", rec.id);
+        if (re) return fail(errMsg(re));
+        const next = TX.filter(t => t.rec_id === rec.id && t.date > o.date && t.id !== id);
+        const fields = { amount: tpl.amount, label: tpl.label, cat: tpl.cat, grp: tpl.grp, account_id: tpl.account_id, store: tpl.store, method: tpl.method, client: tpl.client, type: tpl.type, scope: tpl.scope };
+        if (!dayChanged) { if (next.length) { const { error: ne } = await sb.from("cpta_tx").update(fields).eq("rec_id", rec.id).gt("date", o.date).eq("foyer_id", FOYER); if (ne) return fail(errMsg(ne)); } }
+        else for (const t of next) { const y = +t.date.slice(0, 4), m = +t.date.slice(5, 7); const d = Math.min(newDay, new Date(y, m, 0).getDate()); const { error: ne } = await sb.from("cpta_tx").update({ ...fields, date: `${t.date.slice(0, 7)}-${String(d).padStart(2, "0")}` }).eq("id", t.id); if (ne) return fail(errMsg(ne)); }
+        s._doneAll = next.length;
+      }
     }
     if (body.account_id) { try { localStorage.setItem("compta.acc." + FOYER, body.account_id); } catch (e) {} }
     if (sheetFile) {
@@ -529,7 +554,7 @@ async function saveSheet(isNew, say) {
       if (hadItems) await sb.from("cpta_items").delete().eq("tx_id", id);
       if (items.length) { const { error: ie } = await sb.from("cpta_items").insert(items.map(i => ({ ...i, foyer_id: FOYER, tx_id: id }))); if (ie) toast("Ligne enregistrée, mais pas les articles"); }
     }
-    toast(isNew ? (s.freq === "month" ? "Ligne récurrente enregistrée" : "Ligne enregistrée") : "Ligne mise à jour");
+    toast(isNew ? (s.freq === "month" ? "Ligne récurrente enregistrée" : "Ligne enregistrée") : s._scope === "all" ? `Ligne et mois suivants mis à jour${s._doneAll ? ` (${s._doneAll + 1} lignes)` : ""}` : "Ligne mise à jour");
     closeSheet(); goMonth(s.date); refresh();
   } catch (err) { fail("Pas de connexion internet, réessaie."); }
 }
