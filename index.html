@@ -193,6 +193,11 @@ button.bl:hover{background:var(--sunk)}
 .rec-r{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 @media (min-width:700px){.rec-r{grid-template-columns:repeat(4,1fr)}}
 .rec-old{margin-top:10px}.rec-old summary{cursor:pointer;color:var(--muted);font-size:14px;padding:8px 0}
+.pend{display:grid;gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}
+.pend:last-child{border-bottom:0}
+.pend-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.pend-h small{display:block;color:var(--muted);font-size:12px;font-family:var(--body);font-weight:400}
+.pend-h .num{text-align:right;white-space:nowrap}
 /* comptes */
 .acc{display:grid;gap:10px}
 .acc-h{display:flex;justify-content:space-between;align-items:center;gap:10px;background:none;border:0;padding:0;text-align:left;width:100%}
@@ -302,6 +307,9 @@ const curKey=()=>mkey(cur.y,cur.m);
 const prevKey=()=>mkey(cur.m===1?cur.y-1:cur.y,cur.m===1?12:cur.m-1);
 const qOf=m=>Math.ceil(m/3);
 const sum=(a,f=t=>t.amount)=>a.reduce((s,t)=>s+(+f(t)||0),0);
+/* part réellement reçue d'une entrée, et reste dû */
+const received=t=>t.type==="in"&&t.status==="pending"?Math.min(t.amount,+t.paid||0):t.amount;
+const due=t=>t.type==="in"&&t.status==="pending"?Math.max(0,t.amount-(+t.paid||0)):0;
 const memberName=id=>(MEMBERS.find(m=>m.user_id===id)||{}).name||"";
 
 /* ===================== Chargement ===================== */
@@ -319,7 +327,7 @@ async function loadAll(){
     sb.from("cpta_members").select("*").eq("foyer_id",FOYER).order("added_at"),
     FOYER_INFO().coach_link?sb.rpc("cpta_coaching_payments",{p_foyer:FOYER}):Promise.resolve({data:[]}),
   ]);
-  TX=tx.map(r=>({id:r.id,date:r.date,month:r.date.slice(0,7),type:r.type,scope:r.scope,group:r.grp,cat:r.cat,label:r.label,amount:+r.amount,status:r.status,method:r.method,client:r.client,created_by:r.created_by,store:r.store||"",account_id:r.account_id,receipt_path:r.receipt_path,rec_id:r.rec_id,transfer_id:r.transfer_id}));
+  TX=tx.map(r=>({id:r.id,date:r.date,month:r.date.slice(0,7),type:r.type,scope:r.scope,group:r.grp,cat:r.cat,label:r.label,amount:+r.amount,status:r.status,method:r.method,client:r.client,created_by:r.created_by,store:r.store||"",account_id:r.account_id,receipt_path:r.receipt_path,rec_id:r.rec_id,transfer_id:r.transfer_id,paid:r.paid==null?null:+r.paid}));
   if(!cp.error&&cp.data) cp.data.forEach(p=>{if(!p.paid_at)return;TX.push({id:"coach-"+p.id,date:p.paid_at,month:p.paid_at.slice(0,7),type:"in",scope:"pro",group:"ca",cat:p.label||"Paiement client",label:p.client_name||"Client",client:p.client_name||"",amount:+p.amount,status:"paid",method:p.method||"",source:"coach"})});
   S={...DEFAULT_SETTINGS,...((st.data&&st.data.data)||{})};S.split={...DEFAULT_SETTINGS.split,...(S.split||{})};
   ACC=(ac.data||[]).map(a=>({...a,balance:+a.balance}));
@@ -345,8 +353,8 @@ function proCalc(ca,charges){
 }
 function proMonth(key){
   const rows=TX.filter(t=>t.scope==="pro"&&t.month===key);
-  const ca=sum(rows.filter(t=>t.type==="in"&&t.status!=="pending"));
-  const pending=sum(rows.filter(t=>t.type==="in"&&t.status==="pending"));
+  const ca=sum(rows.filter(t=>t.type==="in"),received);
+  const pending=sum(rows.filter(t=>t.type==="in"),due);
   const charges=sum(rows.filter(t=>t.type==="out"&&t.group!=="urssaf"));
   return {ca,pending,charges,...proCalc(ca,charges)};
 }
@@ -355,7 +363,7 @@ function foyerMonth(key){
   const inc=rows.filter(t=>t.type==="in");
   const by=g=>sum(rows.filter(t=>t.type==="out"&&t.group===g));
   const pro=S.regime==="salarie"?{net:0}:proMonth(key);
-  const incomes=sum(inc)+pro.net;
+  const incomes=sum(inc,received)+pro.net;
   const fixe=by("fixe"),variable=by("variable"),dieu=by("dieu");
   const depenses=fixe+variable+dieu;
   return {rows,inc,proNet:pro.net,incomes,fixe,variable,dieu,depenses,impact:incomes-depenses};
@@ -426,6 +434,7 @@ function vApercu(){
     </div>
   </div>
   ${alertsHtml()}
+  ${S.regime==="salarie"?pendingHtml():""}
   <div><h2>Enveloppes du mois</h2><div class="card env">${envHtml}${epHtml}</div></div>
   <div class="grid2">
     <div><h2>D'où vient l'argent</h2><div class="card rows">${incRows.map(r=>`<div class="row"><div class="t">${esc(r.l)}</div><div class="s">${r.pro?'<span class="chip pro">Pro</span>':'<span class="chip foyer">Foyer</span>'}</div><div class="amt ${r.v<0?"neg":""}">${eur(r.v)}</div></div>`).join("")||'<p class="muted">Aucun revenu ce mois-ci.</p>'}</div></div>
@@ -443,8 +452,8 @@ function alertsHtml(){
     const ytd=sum(Array.from({length:12},(_,i)=>proMonth(mkey(cur.y,i+1))),x=>x.ca);
     if(ytd>S.tvaSeuil*0.85) out.push({c:ytd>S.tvaSeuil?"bad":"warn",h:`Chiffre d'affaires ${cur.y} : <b class="num">${eur0(ytd)}</b>, soit ${pct(ytd/S.tvaSeuil*100)} du seuil de franchise de TVA (${eur0(S.tvaSeuil)}).`});
   }
-  const pend=TX.filter(t=>t.status==="pending"&&t.type==="in");
-  if(pend.length) out.push({c:"warn",h:`${pend.length} paiement${pend.length>1?"s":""} client en attente pour <b class="num">${eur(sum(pend))}</b>.`});
+  const pend=TX.filter(t=>t.type==="in"&&due(t)>0.005);
+  if(pend.length) out.push({c:"warn",h:`${pend.length} paiement${pend.length>1?"s":""} en attente : <b class="num">${eur(sum(pend,due))}</b> restent à recevoir. <button class="btn sm" data-gopending="1">Voir</button>`});
   if(!out.length) return "";
   return `<div class="alerts">${out.map(a=>`<div class="alert ${a.c}"><span class="dot"></span><div>${a.h}${a.id&&isOwner()?` <button class="btn sm" data-pay="${a.id}">Marquer payé</button>`:""}</div></div>`).join("")}</div>`;
 }
@@ -454,7 +463,7 @@ function txRow(t){
   const meta=[t.group==="transfert"?'<span class="chip">Virement</span>':t.scope==="pro"?'<span class="chip pro">Pro</span>':'<span class="chip foyer">Foyer</span>',esc(t.group==="transfert"?accName(t.account_id):t.cat)];
   if(t.rec_id)meta.push("↻ mensuel");if(t.store)meta.push(esc(t.store));if(t.receipt_path)meta.push("ticket");if(t.account_id&&t.group!=="transfert")meta.push(esc(accName(t.account_id)));
   if(t.source==="coach")meta.push('<span class="chip">TB my Coach</span>');
-  if(t.status==="pending")meta.push('<span class="chip warn">En attente</span>');
+  if(t.type==="in"&&due(t)>0.005)meta.push(t.paid?`<span class="chip warn">Reste ${eur(due(t))}</span>`:'<span class="chip warn">En attente</span>');
   const nm=memberName(t.created_by);if(nm&&MEMBERS.length>1)meta.push(esc(nm));
   if(t.method)meta.push(esc(t.method));
   const amt=`${isIn?"+":"−"}${eur(Math.abs(t.amount)).replace("−","")}`;
@@ -521,8 +530,9 @@ function vPro(){
       <div><div class="k">${S.regime==="micro"?"URSSAF ("+pct(r.total)+")":"Cotisations"}</div><div class="v">${eur(curM.cotis+curM.ir)}</div></div>
       <div><div class="k">Charges pro</div><div class="v">${eur(curM.charges)}</div></div>
     </div>
-    ${curM.pending?`<div class="small"><span class="chip warn">${eur(curM.pending)} en attente de paiement</span></div>`:""}
+    ${curM.pending?`<div class="small"><span class="chip warn">${eur(curM.pending)} en attente de paiement ce mois-ci</span></div>`:""}
   </div>
+  ${pendingHtml()}
   <div><h2>Chiffre d'affaires ${y}</h2><div class="card">
     <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Chiffre d'affaires et revenu net par mois">${grid}${bars}</svg>
     <div class="legend"><span><i style="background:var(--pro-soft)"></i>Chiffre d'affaires encaissé</span><span><i style="background:var(--pro)"></i>Revenu net</span></div>

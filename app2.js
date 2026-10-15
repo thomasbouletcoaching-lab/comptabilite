@@ -18,6 +18,8 @@ const guessFamily = name => { const n = " " + (name || "").toLowerCase() + " "; 
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const todayIso = () => iso(new Date());
 const monthsBetween = (a, b) => (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7)) + 1;
+/* état de paiement affiché dans la fiche : encaissé, en attente, payé en partie */
+const payState = s => s._pay || (s.status !== "pending" ? "paid" : (+s.paid > 0 ? "partial" : "pending"));
 const accName = id => (ACC.find(a => a.id === id) || {}).name || "";
 const isTransfer = t => t.group === "transfert";
 const num = v => { const n = parseFloat(String(v ?? "").replace(/\s/g, "").replace(",", ".")); return isFinite(n) ? n : null; };
@@ -132,7 +134,7 @@ function plannedFor(key) {
 /* ===================== Soldes des comptes ===================== */
 function accountBalance(a, atIso) {
   const open = a.opening_date || "1970-01-01";
-  return a.balance + sum(TX.filter(t => t.account_id === a.id && t.date >= open && (!atIso || t.date <= atIso)), t => t.type === "in" ? t.amount : -t.amount);
+  return a.balance + sum(TX.filter(t => t.account_id === a.id && t.date >= open && (!atIso || t.date <= atIso)), t => t.type === "in" ? received(t) : -t.amount);
 }
 function accountFlows(a, key) {
   const rows = TX.filter(t => t.account_id === a.id && t.month === key && t.date >= (a.opening_date || "1970-01-01"));
@@ -354,8 +356,10 @@ function drawSheet(isNew, confirmDel) {
     <div class="fgrid">
       <label class="f"><span>Compte</span><select id="f_account" ${d}>${accOpts(s.account_id)}</select></label>
       <label class="f"><span>Moyen de paiement</span><select id="f_method" ${d}>${["", "Carte", "Virement", "Prélèvement", "Espèces", "Chèque", "Stripe"].concat(["", "Carte", "Virement", "Prélèvement", "Espèces", "Chèque", "Stripe"].includes(s.method || "") ? [] : [s.method]).map(m => `<option value="${esc(m)}" ${(s.method || "") === m ? "selected" : ""}>${esc(m) || "Non précisé"}</option>`).join("")}</select></label>
-      ${s.type === "in" ? `<label class="f"><span>Statut</span><select id="f_status" ${d}><option value="paid" ${s.status !== "pending" ? "selected" : ""}>Encaissé</option><option value="pending" ${s.status === "pending" ? "selected" : ""}>En attente</option></select></label>` : ""}
+      ${s.type === "in" ? `<label class="f"><span>Statut</span><select id="f_status" ${d}><option value="paid" ${payState(s) === "paid" ? "selected" : ""}>Encaissé</option><option value="pending" ${payState(s) === "pending" ? "selected" : ""}>En attente</option><option value="partial" ${payState(s) === "partial" ? "selected" : ""}>Payé en partie</option></select></label>` : ""}
+      ${s.type === "in" && payState(s) === "partial" ? `<label class="f"><span>Déjà reçu (€)</span><input type="text" inputmode="decimal" id="f_paid" value="${s.paid == null ? "" : String(s.paid).replace(".", ",")}" placeholder="ex. 70" ${d}></label>` : ""}
     </div>
+    ${s.type === "in" && payState(s) === "partial" && num(s.amount) ? `<p class="small" style="margin:0">Reste à recevoir : <b class="num">${eur(Math.max(0, num(s.amount) - (num(s.paid) || 0)))}</b></p>` : ""}
     ${isNew ? `<div class="f"><span class="small muted" style="font-weight:500">Fréquence</span><div class="seg"><button type="button" data-freq="once" aria-pressed="${s.freq !== "month"}">Ponctuelle</button><button type="button" data-freq="month" aria-pressed="${s.freq === "month"}">Chaque mois</button></div>
       ${s.freq === "month" ? `<div class="fgrid" style="margin-top:8px;align-items:end"><label class="f"><span>Jour du mois</span><select id="f_day">${dayOptions(s.recDay || +s.date.slice(8))}</select></label>
         <label class="f"><span>Se termine</span><select id="f_endmode"><option value="none" ${!s.endMode || s.endMode === "none" ? "selected" : ""}>Jamais</option><option value="count" ${s.endMode === "count" ? "selected" : ""}>Après un nombre de fois</option><option value="date" ${s.endMode === "date" ? "selected" : ""}>À une date</option></select></label>
@@ -410,7 +414,8 @@ function pullSheet() {
   if (v("f_store") !== undefined) s.store = v("f_store");
   if (v("f_account") !== undefined) s.account_id = v("f_account");
   if (v("f_method") !== undefined) s.method = v("f_method");
-  if (v("f_status") !== undefined) s.status = v("f_status");
+  if (v("f_status") !== undefined) { s._pay = v("f_status"); }
+  if (v("f_paid") !== undefined) s.paid = v("f_paid");
   if (v("f_from") !== undefined) s.from = v("f_from");
   if (v("f_to") !== undefined) s.to = v("f_to");
   if (v("f_endcount") !== undefined) s.endCount = v("f_endcount");
@@ -429,6 +434,8 @@ function bindSheet(isNew, ro) {
   const fdt = $("#f_date"); if (fdt && s.freq === "month" && isNew) fdt.onchange = () => { pullSheet(); s.recDay = undefined; later(() => drawSheet(isNew)); };
   const g = $("#f_group"); if (g) g.onchange = () => { pullSheet(); s.cat = ""; drawSheet(isNew); };
   const c = $("#f_cat"); if (c) c.onchange = () => { pullSheet(); drawSheet(isNew); };
+  const fst = $("#f_status"); if (fst) fst.onchange = () => { pullSheet(); drawSheet(isNew); };
+  const fpd = $("#f_paid"); if (fpd) fpd.onchange = () => { pullSheet(); setTimeout(() => { if (sheet === s) drawSheet(isNew); }, 0); };
   $("#closeSheet").onclick = closeSheet;
   $("#scrim").onclick = e => { if (e.target.id === "scrim") closeSheet(); };
   const rf = $("#f_receipt"); if (rf) rf.onchange = () => { pullSheet(); const file = rf.files && rf.files[0]; if (!file) return; sheetFile = file; if (sheetPrevUrl) URL.revokeObjectURL(sheetPrevUrl); sheetPrevUrl = URL.createObjectURL(file); if (!s.cat || s.group !== "variable") { s.group = "variable"; } if (s.cat !== "Courses" && !s.label) s.cat = "Courses"; drawSheet(isNew); };
@@ -506,13 +513,13 @@ async function saveSheet(isNew, say) {
       }
       toast(isNew ? "Virement enregistré" : "Virement mis à jour"); closeSheet(); goMonth(s.date); refresh(); return;
     }
-    const body0 = { date: s.date, type: s.type, scope: s.scope, grp: s.group, cat: s.cat, label: (s.label || "").trim() || s.cat, amount: Math.round(amt * 100) / 100, status: s.type === "in" ? (s.status || "paid") : "paid", method: s.method || "", client: s.scope === "pro" && s.type === "in" ? (s.client || "").trim() : "", store: s.type === "out" && s.scope === "foyer" ? (s.store || "").trim() : "", account_id: s.account_id || null };
+    const body0 = { date: s.date, type: s.type, scope: s.scope, grp: s.group, cat: s.cat, label: (s.label || "").trim() || s.cat, amount: Math.round(amt * 100) / 100, status: s.type === "in" && payState(s) !== "paid" ? "pending" : "paid", paid: s.type === "in" && payState(s) === "partial" ? (num(s.paid) || 0) : null, method: s.method || "", client: s.scope === "pro" && s.type === "in" ? (s.client || "").trim() : "", store: s.type === "out" && s.scope === "foyer" ? (s.store || "").trim() : "", account_id: s.account_id || null };
     const body = body0;
     let id = s.id;
     const rec = !isNew && s.rec_id ? REC.find(r => r.id === s.rec_id) : null;
     if (rec) {
       const o = s._orig || {};
-      const changed = ["date", "type", "scope", "cat", "label", "status", "method", "client", "store"].some(k => String(o[k === "grp" ? "group" : k] ?? "") !== String(body[k] ?? "")) || o.group !== body.grp || Math.abs((+o.amount || 0) - body.amount) > 0.001 || String(o.account_id || "") !== String(body.account_id || "");
+      const changed = ["date", "type", "scope", "cat", "label", "method", "client", "store"].some(k => String(o[k === "grp" ? "group" : k] ?? "") !== String(body[k] ?? "")) || o.group !== body.grp || Math.abs((+o.amount || 0) - body.amount) > 0.001 || String(o.account_id || "") !== String(body.account_id || "");
       if (changed && !s._scope) { s._askScope = true; drawSheet(false); return; }
     }
     if (isNew) {
@@ -630,6 +637,28 @@ function parseReceipt(text) {
   return { store, date, total, items: items.filter(i => i.price) };
 }
 
+/* ===================== Paiements en attente ===================== */
+function pendingHtml() {
+  const list = TX.filter(t => t.type === "in" && due(t) > 0.005).sort((a, b) => a.date.localeCompare(b.date));
+  if (!list.length) return "";
+  return `<div id="pending"><h2>Paiements en attente</h2><div class="card">
+    <p class="small muted" style="margin:0 0 6px">${list.length} paiement${list.length > 1 ? "s" : ""} · <b class="num">${eur(sum(list, due))}</b> restent à recevoir. Ils ne comptent dans ton chiffre d'affaires et tes comptes qu'une fois reçus.</p>
+    ${list.map(t => `<div class="pend">
+      <div class="pend-h"><span><b>${esc(t.client || t.label)}</b><small>${MOIS[+t.month.slice(5) - 1]} ${t.month.slice(0, 4)} · ${esc(t.label)}</small></span><span class="num"><b>${eur(due(t))}</b><small>${t.paid ? `reçu ${eur(t.paid)} sur ${eur(t.amount)}` : `sur ${eur(t.amount)}`}</small></span></div>
+      ${window._payOpen === t.id ? `<div class="toolbar"><input type="text" inputmode="decimal" id="payAmt-${t.id}" placeholder="Montant reçu (€)" style="max-width:170px"><button class="btn primary sm" data-paygo="${t.id}">Enregistrer</button><button class="btn sm" data-paycancel="1">Annuler</button></div>`
+      : `<div class="toolbar"><button class="btn sm" data-payopen="${t.id}">Paiement reçu…</button><button class="btn sm" data-payall="${t.id}">Tout est payé</button><button class="linkbtn small" data-edit="${t.id}">Ouvrir</button></div>`}
+    </div>`).join("")}
+  </div></div>`;
+}
+async function recordPayment(t, amount) {
+  const paid = Math.round(((+t.paid || 0) + amount) * 100) / 100;
+  const full = paid >= t.amount - 0.005;
+  const { error } = await sb.from("cpta_tx").update(full ? { status: "paid", paid: null } : { status: "pending", paid }).eq("id", t.id);
+  if (error) { toast(errMsg(error)); return; }
+  toast(full ? `${t.client || t.label} : tout est payé` : `${t.client || t.label} : ${eur(amount)} reçus, reste ${eur(t.amount - paid)}`);
+  window._payOpen = null; refresh();
+}
+
 /* ===================== Liaisons des vues ajoutées ===================== */
 function bindExtra() {
   document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => { const g = b.dataset.add; const p = g === "revenu" ? { mode: "in", type: "in", group: "revenu", cat: "Salaire" } : { mode: "out", type: "out", group: g, cat: "" }; openSheet(null, p); });
@@ -651,5 +680,10 @@ function bindExtra() {
   document.querySelectorAll("[data-recstopcancel]").forEach(b => b.onclick = () => { window._recStop = null; render(); });
   document.querySelectorAll("[data-recstopgo]").forEach(b => b.onclick = async () => { const r = REC.find(x => x.id === b.dataset.recstopgo); const m = ($("#stopFrom-" + r.id) || {}).value; if (!/^\d{4}-\d{2}$/.test(m || "")) { toast("Choisis un mois"); return; } b.disabled = true; await stopRecFrom(r, m); window._recStop = null; });
   document.querySelectorAll("[data-recclean]").forEach(b => b.onclick = async () => { const r = REC.find(x => x.id === b.dataset.recclean); b.disabled = true; await stopRecFrom(r, addMonths(r.end_month, 1)); });
+  document.querySelectorAll("[data-payopen]").forEach(b => b.onclick = () => { window._payOpen = b.dataset.payopen; render(); setTimeout(() => { const i = $("#payAmt-" + b.dataset.payopen); if (i) i.focus(); }, 30); });
+  document.querySelectorAll("[data-paycancel]").forEach(b => b.onclick = () => { window._payOpen = null; render(); });
+  document.querySelectorAll("[data-paygo]").forEach(b => b.onclick = () => { const t = TX.find(x => x.id === b.dataset.paygo); const v = num(($("#payAmt-" + t.id) || {}).value); if (!v || v <= 0) { toast("Indique le montant reçu"); return; } b.disabled = true; recordPayment(t, v); });
+  document.querySelectorAll("[data-payall]").forEach(b => b.onclick = () => { const t = TX.find(x => x.id === b.dataset.payall); b.disabled = true; recordPayment(t, due(t)); });
+  document.querySelectorAll("[data-gopending]").forEach(b => b.onclick = () => { setView(S.regime === "salarie" ? "apercu" : "pro"); setTimeout(() => { const p = $("#pending"); if (p) p.scrollIntoView({ behavior: "smooth", block: "start" }); }, 60); });
   const pe = $("#s_persons"); if (pe) pe.oninput = () => debounce("persons", () => saveSettings({ persons: +pe.value || 0 }), 700);
 }
